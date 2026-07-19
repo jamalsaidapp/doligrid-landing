@@ -87,6 +87,29 @@ export function getCoreCheckoutIntentsUrl(value) {
   ).toString();
 }
 
+export function getCoreWireCheckoutIntentsUrl(value) {
+  return new URL(
+    "/api/v1/billing/checkout-intents/wire",
+    resolveCoreApiOrigin(value),
+  ).toString();
+}
+
+export function getCoreBankAccountsUrl(value) {
+  const url = new URL(
+    "/api/v1/billing/bank-accounts",
+    resolveCoreApiOrigin(value),
+  );
+  url.searchParams.set("activeOnly", "true");
+  return url.toString();
+}
+
+export function getCoreWirePaymentsUrl(value) {
+  return new URL(
+    "/api/v1/billing/wire-payments",
+    resolveCoreApiOrigin(value),
+  ).toString();
+}
+
 export function getCoreLandingUrl(value, productSlug) {
   const slug = encodeURIComponent(productSlug || "doligrid");
   return new URL(
