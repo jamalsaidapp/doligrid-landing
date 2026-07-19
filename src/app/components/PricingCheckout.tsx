@@ -25,7 +25,7 @@ type BankAccount = {
 
 type Props = {
   plans: CheckoutPlan[];
-  /** When false, Acheter falls back to mailto (Manager plans unavailable). */
+  /** False when Manager has no active checkout plans. */
   checkoutEnabled: boolean;
 };
 
@@ -57,6 +57,17 @@ export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
     if (method === "wire" && !banksLoaded && !banksLoading) {
       void loadBanks();
     }
+  }
+
+  function beginPayment(planId: string, method: "card" | "wire") {
+    if (!checkoutEnabled) {
+      setActivePlanId(null);
+      setError(
+        "Le paiement en ligne est temporairement indisponible : aucune offre active n’est publiée dans SaaS Manager.",
+      );
+      return;
+    }
+    selectPlan(planId, method);
   }
 
   async function loadBanks() {
@@ -149,6 +160,15 @@ export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
 
   return (
     <>
+      {!checkoutEnabled && error ? (
+        <p
+          className="form-status form-status-error"
+          role="alert"
+          aria-live="assertive"
+        >
+          {error}
+        </p>
+      ) : null}
       <div className="pricing-grid">
         {plans.map((plan) => (
           <article
@@ -174,34 +194,25 @@ export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
                 </li>
               ))}
             </ul>
-            {checkoutEnabled ? (
-              <div className="pricing-actions">
-                <button
-                  type="button"
-                  className={`button ${plan.popular ? "button-accent" : "button-outline"}`}
-                  onClick={() => selectPlan(plan.id, "card")}
-                  disabled={busy}
-                >
-                  Acheter <i className="bi bi-arrow-right" aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
-                  className="wire-action"
-                  onClick={() => selectPlan(plan.id, "wire")}
-                  disabled={busy}
-                >
-                  <i className="bi bi-bank" aria-hidden="true" />
-                  Virement bancaire
-                </button>
-              </div>
-            ) : (
-              <a
+            <div className="pricing-actions">
+              <button
+                type="button"
                 className={`button ${plan.popular ? "button-accent" : "button-outline"}`}
-                href={`mailto:commercial@doligrid.com?subject=Offre%20${encodeURIComponent(plan.name)}`}
+                onClick={() => beginPayment(plan.id, "card")}
+                disabled={busy}
               >
                 Acheter <i className="bi bi-arrow-right" aria-hidden="true" />
-              </a>
-            )}
+              </button>
+              <button
+                type="button"
+                className="wire-action"
+                onClick={() => beginPayment(plan.id, "wire")}
+                disabled={busy}
+              >
+                <i className="bi bi-bank" aria-hidden="true" />
+                Virement bancaire
+              </button>
+            </div>
           </article>
         ))}
       </div>
