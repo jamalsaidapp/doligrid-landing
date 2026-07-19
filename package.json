@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "node --test tests/leads-route.test.mjs",
+    "test": "node --test tests/leads-route.test.mjs tests/banks-route.test.mjs tests/wire-route.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

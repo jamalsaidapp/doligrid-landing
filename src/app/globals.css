@@ -1875,6 +1875,30 @@ h3,
     min-height: auto;
   }
 
+  .pricing-checkout-panel {
+    padding: 24px 20px;
+  }
+
+  .checkout-form {
+    grid-template-columns: 1fr;
+  }
+
+  .checkout-form label:first-child,
+  .checkout-proof,
+  .checkout-form .form-status,
+  .checkout-form > .button {
+    grid-column: auto;
+  }
+
+  .wire-bank-card dl > div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .checkout-form > .button {
+    width: 100%;
+  }
+
   .trust {
     padding-top: 20px;
   }

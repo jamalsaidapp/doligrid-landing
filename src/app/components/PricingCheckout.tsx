@@ -234,6 +234,15 @@ export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
                   Chargement des coordonnées bancaires…
                 </p>
               ) : null}
+              {!banksLoading && !banksLoaded ? (
+                <button
+                  type="button"
+                  className="button button-outline"
+                  onClick={() => void loadBanks()}
+                >
+                  Réessayer le chargement
+                </button>
+              ) : null}
               {!banksLoading && banksLoaded && banks.length === 0 ? (
                 <p className="form-status form-status-error">
                   Aucun compte bancaire n’est disponible actuellement.

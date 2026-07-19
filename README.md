@@ -37,6 +37,21 @@ Optional browser fields:
 The server always supplies `productSlug` (default `doligrid`) and
 `source: "landing"`; browser values cannot override them.
 
+## Wire-transfer checkout
+
+The pricing cards offer both hosted card checkout and **Virement bancaire**.
+Bank details are loaded through `GET /api/banks`; the server forwards its
+Platform API key to Manager Core and returns only the public fields of active
+accounts.
+
+`POST /api/wire` accepts multipart form data with `planId`, required `email`,
+optional `name` / `company`, and required `proof`. The route enforces the exact
+browser origin, rejects any `tenantId`, limits the request and proof to the
+Manager 8 MiB ceiling, and accepts only JPEG, PNG, WebP, or PDF. It first
+creates a LANDING/WIRE CheckoutIntent and then uploads the proof linked to that
+intent. Tenant creation and provisioning happen only after an administrator
+approves the payment in Manager.
+
 ## Production configuration
 
 Set these server environment variables in the deployment platform:
