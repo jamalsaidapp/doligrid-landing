@@ -6,9 +6,9 @@ export default function CheckoutCancelPage() {
       <h1>Paiement annulé</h1>
       <p>Aucun prélèvement n’a été effectué. Vous pouvez choisir une offre à tout moment.</p>
       <p>
-        <a className="button button-accent" href="/#tarifs">
+        <Link className="button button-accent" href="/#tarifs">
           Voir les tarifs
-        </a>
+        </Link>
       </p>
       <p>
         <Link href="/">Retour à l’accueil</Link>
