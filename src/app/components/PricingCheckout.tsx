@@ -258,18 +258,17 @@ export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
           data.message || "Le justificatif n’a pas pu être envoyé.",
         );
       }
-      const portalBase = (
-        process.env.NEXT_PUBLIC_PORTAL_URL ||
-        process.env.PORTAL_URL ||
-        ""
-      ).replace(/\/$/, "");
-      if (portalBase) {
-        const login = new URL("/login", portalBase);
-        login.searchParams.set("email", email.trim());
-        login.searchParams.set("wire", "pending");
-        window.location.assign(login.toString());
+
+      const portalUrl =
+        typeof data.portalUrl === "string" && data.portalUrl
+          ? data.portalUrl
+          : null;
+      if (portalUrl) {
+        window.location.assign(portalUrl);
         return;
       }
+
+      // Fallback if server could not resolve portal base URL.
       setSuccess(
         data.message ||
           "Justificatif reçu. Votre accès sera activé après validation administrative.",

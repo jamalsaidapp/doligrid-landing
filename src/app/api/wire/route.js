@@ -74,6 +74,39 @@ function safeError(message, status) {
   return NextResponse.json({ message }, { status });
 }
 
+/**
+ * Client portal base (Manager FRONTEND_URL). Prefer explicit PORTAL_URL,
+ * then fall back to the CORE_API_URL origin (strip /api/v1).
+ */
+function resolvePortalBaseUrl() {
+  const explicit = (
+    process.env.PORTAL_URL ||
+    process.env.NEXT_PUBLIC_PORTAL_URL ||
+    ""
+  )
+    .trim()
+    .replace(/\/+$/, "");
+  if (explicit) return explicit;
+
+  const core = (process.env.CORE_API_URL || "").trim();
+  if (!core) return null;
+  try {
+    const url = new URL(core);
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+function buildWirePortalLoginUrl(email) {
+  const base = resolvePortalBaseUrl();
+  if (!base) return null;
+  const login = new URL("/login", `${base}/`);
+  login.searchParams.set("email", email);
+  login.searchParams.set("wire", "pending");
+  return login.toString();
+}
+
 /** Browser wire form → wire CheckoutIntent → linked proof submission. */
 export async function POST(request) {
   const apiKey = process.env.PLATFORM_API_KEY?.trim();
@@ -215,6 +248,7 @@ export async function POST(request) {
       status: "PENDING",
       message:
         "Votre justificatif a été reçu. Votre accès sera activé après validation administrative.",
+      portalUrl: buildWirePortalLoginUrl(email),
     },
     { status: 201 },
   );
