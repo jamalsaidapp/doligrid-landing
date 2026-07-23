@@ -1,6 +1,11 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  extractTransactionId,
+  getPaddleClientToken,
+  openPaddleCheckout,
+} from "./paddle-client";
 
 export type CheckoutPlan = {
   id: string;
@@ -29,9 +34,14 @@ type Props = {
   checkoutEnabled: boolean;
 };
 
+type Step = "method" | "details";
+
 export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<"card" | "wire">("card");
+  const [step, setStep] = useState<Step>("method");
+  const [paymentMethod, setPaymentMethod] = useState<"card" | "wire" | null>(
+    null,
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -48,26 +58,74 @@ export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
     [plans, activePlanId],
   );
 
-  function selectPlan(planId: string, method: "card" | "wire") {
-    setActivePlanId(planId);
-    setPaymentMethod(method);
+  const paddleConfigured = Boolean(getPaddleClientToken());
+
+  useEffect(() => {
+    if (!activePlanId) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !busy) closeModal();
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [activePlanId, busy]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const txn = params.get("_ptxn");
+    if (!txn?.startsWith("txn_") || !paddleConfigured) return;
+
+    void openPaddleCheckout({
+      transactionId: txn,
+      successUrl: `${window.location.origin}/checkout/success?txn=${encodeURIComponent(txn)}`,
+      onEvent: (event) => {
+        if (event.name === "checkout.completed") {
+          const completedTxn =
+            event.data?.transaction_id || event.data?.id || txn;
+          window.location.assign(
+            `/checkout/success?txn=${encodeURIComponent(completedTxn)}`,
+          );
+        }
+      },
+    }).catch((err) => {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossible d’ouvrir le paiement Paddle.",
+      );
+    });
+  }, [paddleConfigured]);
+
+  function closeModal() {
+    setActivePlanId(null);
+    setStep("method");
+    setPaymentMethod(null);
     setError("");
     setSuccess("");
     setProof(null);
-    if (method === "wire" && !banksLoaded && !banksLoading) {
-      void loadBanks();
-    }
   }
 
-  function beginPayment(planId: string, method: "card" | "wire") {
+  function openBuyModal(planId: string) {
     if (!checkoutEnabled) {
-      setActivePlanId(null);
       setError(
         "Le paiement en ligne est temporairement indisponible : aucune offre active n’est publiée dans SaaS Manager.",
       );
       return;
     }
-    selectPlan(planId, method);
+    setActivePlanId(planId);
+    setStep("method");
+    setPaymentMethod(null);
+    setError("");
+    setSuccess("");
+    setProof(null);
   }
 
   async function loadBanks() {
@@ -83,16 +141,36 @@ export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
       setBanksLoaded(true);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Coordonnées bancaires indisponibles.",
+        err instanceof Error
+          ? err.message
+          : "Coordonnées bancaires indisponibles.",
       );
     } finally {
       setBanksLoading(false);
     }
   }
 
+  function chooseMethod(method: "card" | "wire") {
+    setPaymentMethod(method);
+    setStep("details");
+    setError("");
+    setSuccess("");
+    setProof(null);
+    if (method === "wire" && !banksLoaded && !banksLoading) {
+      void loadBanks();
+    }
+  }
+
   async function onCardSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!activePlan || !checkoutEnabled) return;
+    if (!activePlan || !checkoutEnabled || !paymentMethod) return;
+    if (!paddleConfigured) {
+      setError(
+        "Le paiement par carte n’est pas configuré. Ajoutez NEXT_PUBLIC_PADDLE_CLIENT_TOKEN.",
+      );
+      return;
+    }
+
     setBusy(true);
     setError("");
     try {
@@ -110,13 +188,41 @@ export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
       if (!res.ok) {
         throw new Error(data.message || `Checkout failed (${res.status})`);
       }
-      const url = data.url || data.checkoutUrl;
-      if (typeof url !== "string") {
-        throw new Error("Checkout did not return a URL");
+
+      const transactionId = extractTransactionId(data);
+      const intentId =
+        typeof data.id === "string" && data.id ? data.id : undefined;
+      if (!transactionId) {
+        throw new Error("Le Manager n’a pas renvoyé de transaction Paddle.");
       }
-      window.location.href = url;
+
+      const successUrl = new URL("/checkout/success", window.location.origin);
+      successUrl.searchParams.set("txn", transactionId);
+      if (intentId) successUrl.searchParams.set("intent", intentId);
+
+      await openPaddleCheckout({
+        transactionId,
+        email: email.trim(),
+        successUrl: successUrl.toString(),
+        onEvent: (event) => {
+          if (event.name === "checkout.completed") {
+            const completedTxn =
+              event.data?.transaction_id ||
+              event.data?.id ||
+              transactionId;
+            const done = new URL(
+              "/checkout/success",
+              window.location.origin,
+            );
+            done.searchParams.set("txn", completedTxn);
+            if (intentId) done.searchParams.set("intent", intentId);
+            window.location.assign(done.toString());
+          }
+        },
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Checkout failed");
+    } finally {
       setBusy(false);
     }
   }
@@ -160,7 +266,7 @@ export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
 
   return (
     <>
-      {!checkoutEnabled && error ? (
+      {!checkoutEnabled && error && !activePlan ? (
         <p
           className="form-status form-status-error"
           role="alert"
@@ -169,6 +275,7 @@ export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
           {error}
         </p>
       ) : null}
+
       <div className="pricing-grid">
         {plans.map((plan) => (
           <article
@@ -194,197 +301,276 @@ export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
                 </li>
               ))}
             </ul>
-            <div className="pricing-actions">
-              <button
-                type="button"
-                className={`button ${plan.popular ? "button-accent" : "button-outline"}`}
-                onClick={() => beginPayment(plan.id, "card")}
-                disabled={busy}
-              >
-                Acheter <i className="bi bi-arrow-right" aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                className="wire-action"
-                onClick={() => beginPayment(plan.id, "wire")}
-                disabled={busy}
-              >
-                <i className="bi bi-bank" aria-hidden="true" />
-                Virement bancaire
-              </button>
-            </div>
+            <button
+              type="button"
+              className={`button ${plan.popular ? "button-accent" : "button-outline"}`}
+              onClick={() => openBuyModal(plan.id)}
+              disabled={busy}
+            >
+              Acheter <i className="bi bi-arrow-right" aria-hidden="true" />
+            </button>
           </article>
         ))}
       </div>
 
       {activePlan && checkoutEnabled ? (
-        <div className="pricing-checkout-panel">
-          <div className="checkout-panel-heading">
-            <div>
-              <p className="plan-label">
-                {paymentMethod === "wire"
-                  ? "Virement bancaire"
-                  : "Paiement sécurisé"}
-              </p>
-              <h3>Paiement — {activePlan.name}</h3>
-            </div>
-            <button
-              type="button"
-              className="checkout-close"
-              onClick={() => setActivePlanId(null)}
-              aria-label="Fermer le formulaire de paiement"
-            >
-              <i className="bi bi-x-lg" aria-hidden="true" />
-            </button>
-          </div>
-
-          {paymentMethod === "wire" ? (
-            <div className="wire-bank-section" aria-live="polite">
-              {banksLoading ? (
-                <p className="form-status form-status-loading">
-                  Chargement des coordonnées bancaires…
+        <div
+          className="checkout-modal-backdrop"
+          role="presentation"
+          onClick={() => {
+            if (!busy) closeModal();
+          }}
+        >
+          <div
+            className="checkout-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="checkout-modal-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="checkout-panel-heading">
+              <div>
+                <p className="plan-label">Paiement</p>
+                <h3 id="checkout-modal-title">{activePlan.name}</h3>
+                <p className="checkout-modal-price">
+                  {activePlan.priceLabel} Dh / mois
                 </p>
-              ) : null}
-              {!banksLoading && !banksLoaded ? (
+              </div>
+              <button
+                type="button"
+                className="checkout-close"
+                onClick={() => {
+                  if (!busy) closeModal();
+                }}
+                aria-label="Fermer le formulaire de paiement"
+                disabled={busy}
+              >
+                <i className="bi bi-x-lg" aria-hidden="true" />
+              </button>
+            </div>
+
+            {step === "method" ? (
+              <div className="payment-method-grid">
+                <p className="checkout-description">
+                  Choisissez votre mode de paiement pour continuer.
+                </p>
                 <button
                   type="button"
-                  className="button button-outline"
-                  onClick={() => void loadBanks()}
+                  className="payment-method-card"
+                  onClick={() => chooseMethod("card")}
                 >
-                  Réessayer le chargement
+                  <span className="payment-method-icon">
+                    <i className="bi bi-credit-card-2-front" aria-hidden="true" />
+                  </span>
+                  <span>
+                    <strong>Carte bancaire</strong>
+                    <small>Paiement sécurisé via Paddle</small>
+                  </span>
+                  <i className="bi bi-arrow-right" aria-hidden="true" />
                 </button>
-              ) : null}
-              {!banksLoading && banksLoaded && banks.length === 0 ? (
-                <p className="form-status form-status-error">
-                  Aucun compte bancaire n’est disponible actuellement.
-                </p>
-              ) : null}
-              {banks.map((bank) => (
-                <article className="wire-bank-card" key={bank.id}>
-                  <div className="wire-bank-title">
-                    <span>
-                      <i className="bi bi-bank" aria-hidden="true" />
-                    </span>
-                    <div>
-                      <strong>{bank.label}</strong>
-                      <small>{bank.bankName}</small>
-                    </div>
-                    <em>{bank.currency}</em>
-                  </div>
-                  <dl>
-                    <div>
-                      <dt>Titulaire</dt>
-                      <dd>{bank.accountHolder}</dd>
-                    </div>
-                    {bank.rib ? (
-                      <div>
-                        <dt>RIB</dt>
-                        <dd>{bank.rib}</dd>
-                      </div>
-                    ) : null}
-                    {bank.iban ? (
-                      <div>
-                        <dt>IBAN</dt>
-                        <dd>{bank.iban}</dd>
-                      </div>
-                    ) : null}
-                    {bank.swift ? (
-                      <div>
-                        <dt>SWIFT</dt>
-                        <dd>{bank.swift}</dd>
-                      </div>
-                    ) : null}
-                  </dl>
-                  {bank.instructions ? (
-                    <p className="wire-instructions">{bank.instructions}</p>
-                  ) : null}
-                </article>
-              ))}
-            </div>
-          ) : (
-            <p className="checkout-description">
-              Vous serez redirigé vers la page de paiement sécurisée. L’accès
-              s’active après confirmation du prestataire.
-            </p>
-          )}
+                <button
+                  type="button"
+                  className="payment-method-card"
+                  onClick={() => chooseMethod("wire")}
+                >
+                  <span className="payment-method-icon">
+                    <i className="bi bi-bank" aria-hidden="true" />
+                  </span>
+                  <span>
+                    <strong>Virement bancaire</strong>
+                    <small>Coordonnées + justificatif</small>
+                  </span>
+                  <i className="bi bi-arrow-right" aria-hidden="true" />
+                </button>
+                {!paddleConfigured ? (
+                  <p className="form-status form-status-error" role="status">
+                    Le paiement par carte nécessite NEXT_PUBLIC_PADDLE_CLIENT_TOKEN.
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="checkout-back"
+                  onClick={() => {
+                    if (!busy) {
+                      setStep("method");
+                      setError("");
+                      setSuccess("");
+                    }
+                  }}
+                  disabled={busy}
+                >
+                  <i className="bi bi-arrow-left" aria-hidden="true" />
+                  Changer de mode de paiement
+                </button>
 
-          <form
-            onSubmit={
-              paymentMethod === "wire" ? onWireSubmit : onCardSubmit
-            }
-            className="checkout-form"
-          >
-            <label>
-              <span>Email professionnel</span>
-              <input
-                required
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="vous@entreprise.com"
-              />
-            </label>
-            <label>
-              <span>Nom (optionnel)</span>
-              <input value={name} onChange={(e) => setName(e.target.value)} />
-            </label>
-            <label>
-              <span>Société (optionnel)</span>
-              <input
-                value={company}
-                onChange={(e) => setCompany(e.target.value)}
-              />
-            </label>
-            {paymentMethod === "wire" ? (
-              <label className="checkout-proof">
-                <span>Justificatif de virement</span>
-                <input
-                  required
-                  type="file"
-                  accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"
-                  onChange={(e) => setProof(e.target.files?.[0] || null)}
-                />
-                <small>JPEG, PNG, WebP ou PDF — 8 Mo maximum.</small>
-              </label>
-            ) : null}
-            {error ? (
-              <p
-                className="form-status form-status-error"
-                role="alert"
-                aria-live="assertive"
-              >
-                {error}
-              </p>
-            ) : null}
-            {success ? (
-              <p
-                className="form-status form-status-success"
-                role="status"
-                aria-live="polite"
-              >
-                <i className="bi bi-check-circle-fill" aria-hidden="true" />{" "}
-                {success}
-              </p>
-            ) : null}
-            <button
-              type="submit"
-              className="button button-accent"
-              disabled={
-                busy ||
-                Boolean(success) ||
-                (paymentMethod === "wire" &&
-                  (banksLoading || banks.length === 0 || !proof))
-              }
-            >
-              {busy
-                ? paymentMethod === "wire"
-                  ? "Envoi…"
-                  : "Redirection…"
-                : paymentMethod === "wire"
-                  ? "Envoyer le justificatif"
-                  : "Continuer vers le paiement"}
-            </button>
-          </form>
+                {paymentMethod === "wire" ? (
+                  <div className="wire-bank-section" aria-live="polite">
+                    {banksLoading ? (
+                      <p className="form-status form-status-loading">
+                        Chargement des coordonnées bancaires…
+                      </p>
+                    ) : null}
+                    {!banksLoading && !banksLoaded ? (
+                      <button
+                        type="button"
+                        className="button button-outline"
+                        onClick={() => void loadBanks()}
+                      >
+                        Réessayer le chargement
+                      </button>
+                    ) : null}
+                    {!banksLoading && banksLoaded && banks.length === 0 ? (
+                      <p className="form-status form-status-error">
+                        Aucun compte bancaire n’est disponible actuellement.
+                      </p>
+                    ) : null}
+                    {banks.map((bank) => (
+                      <article className="wire-bank-card" key={bank.id}>
+                        <div className="wire-bank-title">
+                          <span>
+                            <i className="bi bi-bank" aria-hidden="true" />
+                          </span>
+                          <div>
+                            <strong>{bank.label}</strong>
+                            <small>{bank.bankName}</small>
+                          </div>
+                          <em>{bank.currency}</em>
+                        </div>
+                        <dl>
+                          <div>
+                            <dt>Titulaire</dt>
+                            <dd>{bank.accountHolder}</dd>
+                          </div>
+                          {bank.rib ? (
+                            <div>
+                              <dt>RIB</dt>
+                              <dd>{bank.rib}</dd>
+                            </div>
+                          ) : null}
+                          {bank.iban ? (
+                            <div>
+                              <dt>IBAN</dt>
+                              <dd>{bank.iban}</dd>
+                            </div>
+                          ) : null}
+                          {bank.swift ? (
+                            <div>
+                              <dt>SWIFT</dt>
+                              <dd>{bank.swift}</dd>
+                            </div>
+                          ) : null}
+                        </dl>
+                        {bank.instructions ? (
+                          <p className="wire-instructions">
+                            {bank.instructions}
+                          </p>
+                        ) : null}
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="checkout-description">
+                    Une fenêtre Paddle s’ouvrira pour finaliser le paiement.
+                    Après succès, SaaS Manager active l’abonnement via le webhook
+                    Paddle.
+                  </p>
+                )}
+
+                <form
+                  onSubmit={
+                    paymentMethod === "wire" ? onWireSubmit : onCardSubmit
+                  }
+                  className="checkout-form"
+                >
+                  <label>
+                    <span>Email professionnel</span>
+                    <input
+                      required
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="vous@entreprise.com"
+                      autoComplete="email"
+                    />
+                  </label>
+                  <label>
+                    <span>Nom (optionnel)</span>
+                    <input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      autoComplete="name"
+                    />
+                  </label>
+                  <label>
+                    <span>Société (optionnel)</span>
+                    <input
+                      value={company}
+                      onChange={(e) => setCompany(e.target.value)}
+                      autoComplete="organization"
+                    />
+                  </label>
+                  {paymentMethod === "wire" ? (
+                    <label className="checkout-proof">
+                      <span>Justificatif de virement</span>
+                      <input
+                        required
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"
+                        onChange={(e) =>
+                          setProof(e.target.files?.[0] || null)
+                        }
+                      />
+                      <small>JPEG, PNG, WebP ou PDF — 8 Mo maximum.</small>
+                    </label>
+                  ) : null}
+                  {error ? (
+                    <p
+                      className="form-status form-status-error"
+                      role="alert"
+                      aria-live="assertive"
+                    >
+                      {error}
+                    </p>
+                  ) : null}
+                  {success ? (
+                    <p
+                      className="form-status form-status-success"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      <i
+                        className="bi bi-check-circle-fill"
+                        aria-hidden="true"
+                      />{" "}
+                      {success}
+                    </p>
+                  ) : null}
+                  <button
+                    type="submit"
+                    className="button button-accent"
+                    disabled={
+                      busy ||
+                      Boolean(success) ||
+                      (paymentMethod === "wire" &&
+                        (banksLoading || banks.length === 0 || !proof)) ||
+                      (paymentMethod === "card" && !paddleConfigured)
+                    }
+                  >
+                    {busy
+                      ? paymentMethod === "wire"
+                        ? "Envoi…"
+                        : "Ouverture de Paddle…"
+                      : paymentMethod === "wire"
+                        ? "Envoyer le justificatif"
+                        : "Payer par carte"}
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
         </div>
       ) : null}
     </>

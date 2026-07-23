@@ -37,20 +37,34 @@ Optional browser fields:
 The server always supplies `productSlug` (default `doligrid`) and
 `source: "landing"`; browser values cannot override them.
 
-## Wire-transfer checkout
+## Checkout (card + wire)
 
-The pricing cards offer both hosted card checkout and **Virement bancaire**.
-Bank details are loaded through `GET /api/banks`; the server forwards its
-Platform API key to Manager Core and returns only the public fields of active
-accounts.
+Clicking **Acheter** opens a modal to choose:
+
+1. **Carte bancaire** — the landing creates a CheckoutIntent through
+   `POST /api/checkout` (Manager → Paddle transaction), then opens the Paddle.js
+   overlay with `providerRef` / `transactionId`. After a successful payment,
+   Paddle webhooks notify SaaS Manager, which activates the subscription.
+2. **Virement bancaire** — bank details come from `GET /api/banks`. Submitting
+   proof uses `POST /api/wire` (CheckoutIntent + proof upload). Tenant access
+   is activated only after an administrator approves the payment in Manager.
+
+Required browser env for card checkout:
+
+```dotenv
+NEXT_PUBLIC_PADDLE_CLIENT_TOKEN=<paddle-client-side-token>
+NEXT_PUBLIC_PADDLE_ENV=sandbox
+```
+
+Set `NEXT_PUBLIC_PADDLE_ENV=production` for live payments. Approve
+`LANDING_PUBLIC_URL` (and localhost if needed) as a Paddle checkout domain, and
+point Paddle’s default payment link at the landing origin so `_ptxn` recovery
+works.
 
 `POST /api/wire` accepts multipart form data with `planId`, required `email`,
 optional `name` / `company`, and required `proof`. The route enforces the exact
 browser origin, rejects any `tenantId`, limits the request and proof to the
-Manager 8 MiB ceiling, and accepts only JPEG, PNG, WebP, or PDF. It first
-creates a LANDING/WIRE CheckoutIntent and then uploads the proof linked to that
-intent. Tenant creation and provisioning happen only after an administrator
-approves the payment in Manager.
+Manager 8 MiB ceiling, and accepts only JPEG, PNG, WebP, or PDF.
 
 ## Production configuration
 
@@ -61,6 +75,8 @@ LANDING_PUBLIC_URL=https://doligrid.com
 CORE_API_URL=https://manager.frametoy.online/api/v1
 PRODUCT_SLUG=doligrid
 PLATFORM_API_KEY=<same value as Manager Admin → Settings>
+NEXT_PUBLIC_PADDLE_CLIENT_TOKEN=<paddle-client-side-token>
+NEXT_PUBLIC_PADDLE_ENV=production
 # Optional exact, comma-separated aliases or preview origins:
 ALLOWED_LANDING_ORIGINS=
 ```

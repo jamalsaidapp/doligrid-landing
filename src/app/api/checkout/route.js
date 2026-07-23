@@ -146,5 +146,32 @@ export async function POST(request) {
     );
   }
 
-  return NextResponse.json(data && typeof data === "object" ? data : {});
+  const intent = data && typeof data === "object" ? data : {};
+  const providerRef =
+    typeof intent.providerRef === "string" ? intent.providerRef : null;
+  const transactionId =
+    typeof intent.transactionId === "string"
+      ? intent.transactionId
+      : providerRef;
+  const returnedCheckoutUrl =
+    typeof intent.checkoutUrl === "string"
+      ? intent.checkoutUrl
+      : typeof intent.url === "string"
+        ? intent.url
+        : null;
+
+  // Manager already created the CheckoutIntent + Paddle transaction.
+  // Subscription provisioning happens via Paddle → Manager webhooks after pay.
+  return NextResponse.json({
+    id: typeof intent.id === "string" ? intent.id : undefined,
+    status: typeof intent.status === "string" ? intent.status : undefined,
+    provider:
+      typeof intent.provider === "string" ? intent.provider : "PADDLE",
+    providerRef,
+    transactionId,
+    url: returnedCheckoutUrl,
+    checkoutUrl: returnedCheckoutUrl,
+    expiresAt:
+      typeof intent.expiresAt === "string" ? intent.expiresAt : undefined,
+  });
 }
