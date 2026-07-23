@@ -166,5 +166,7 @@ export async function POST(request) {
         ? data.subscriptionId
         : null,
     provisioned: Boolean(data?.provisioned),
+    portalUrl:
+      data && typeof data.portalUrl === "string" ? data.portalUrl : null,
   });
 }

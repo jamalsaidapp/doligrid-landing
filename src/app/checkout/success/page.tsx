@@ -14,7 +14,7 @@ export default async function CheckoutSuccessPage({ searchParams }: Props) {
   const txn = first(params.txn);
   const intent = first(params.intent);
 
-  const portalUrl = (
+  const portalFallbackUrl = (
     process.env.NEXT_PUBLIC_PORTAL_URL ||
     process.env.PORTAL_URL ||
     ""
@@ -24,7 +24,7 @@ export default async function CheckoutSuccessPage({ searchParams }: Props) {
     <CheckoutSuccessClient
       txn={txn}
       intentId={intent}
-      portalUrl={portalUrl}
+      portalFallbackUrl={portalFallbackUrl}
     />
   );
 }

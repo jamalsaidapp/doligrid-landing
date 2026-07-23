@@ -217,10 +217,14 @@ export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
 
           void (async () => {
             if (intentId) {
-              await completeCheckoutIntent({
+              const result = await completeCheckoutIntent({
                 intentId,
                 providerRef: completedTxn,
               });
+              if (result.ok && result.portalUrl) {
+                window.location.assign(result.portalUrl);
+                return;
+              }
             }
             window.location.assign(done.toString());
           })();
@@ -253,6 +257,18 @@ export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
         throw new Error(
           data.message || "Le justificatif n’a pas pu être envoyé.",
         );
+      }
+      const portalBase = (
+        process.env.NEXT_PUBLIC_PORTAL_URL ||
+        process.env.PORTAL_URL ||
+        ""
+      ).replace(/\/$/, "");
+      if (portalBase) {
+        const login = new URL("/login", portalBase);
+        login.searchParams.set("email", email.trim());
+        login.searchParams.set("wire", "pending");
+        window.location.assign(login.toString());
+        return;
       }
       setSuccess(
         data.message ||

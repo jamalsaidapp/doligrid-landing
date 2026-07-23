@@ -8,6 +8,7 @@ export async function completeCheckoutIntent(options: {
   tenantId?: string | null;
   subscriptionId?: string | null;
   provisioned?: boolean;
+  portalUrl?: string | null;
 }> {
   const res = await fetch("/api/checkout/complete", {
     method: "POST",
@@ -34,5 +35,6 @@ export async function completeCheckoutIntent(options: {
     subscriptionId:
       typeof data.subscriptionId === "string" ? data.subscriptionId : null,
     provisioned: Boolean(data.provisioned),
+    portalUrl: typeof data.portalUrl === "string" ? data.portalUrl : null,
   };
 }
