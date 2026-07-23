@@ -101,10 +101,11 @@ function resolvePortalBaseUrl() {
 function buildWirePortalLoginUrl(email) {
   const base = resolvePortalBaseUrl();
   if (!base) return null;
-  const login = new URL("/login", `${base}/`);
-  login.searchParams.set("email", email);
-  login.searchParams.set("wire", "pending");
-  return login.toString();
+  // Clear any existing Manager session first, then open login as this customer.
+  const prepare = new URL("/api/auth/prepare-login", `${base}/`);
+  prepare.searchParams.set("email", email);
+  prepare.searchParams.set("wire", "pending");
+  return prepare.toString();
 }
 
 /** Browser wire form → wire CheckoutIntent → linked proof submission. */

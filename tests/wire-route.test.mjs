@@ -116,7 +116,7 @@ test("creates a wire intent then submits proof without any tenantId", async () =
   assert.equal(data.checkoutIntentId, "intent-1");
   assert.equal(
     data.portalUrl,
-    "https://manager.example.com/login?email=buyer%40example.com&wire=pending",
+    "https://manager.example.com/api/auth/prepare-login?email=buyer%40example.com&wire=pending",
   );
   assert.deepEqual(
     calls.map((call) => call.url),
