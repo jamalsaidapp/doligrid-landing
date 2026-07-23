@@ -87,6 +87,17 @@ export function getCoreCheckoutIntentsUrl(value) {
   ).toString();
 }
 
+export function getCoreCheckoutIntentReconcileUrl(value, intentId) {
+  if (!intentId || typeof intentId !== "string") {
+    throw new Error("Checkout intent id is required");
+  }
+  const id = encodeURIComponent(intentId.trim());
+  return new URL(
+    `/api/v1/billing/checkout-intents/${id}/reconcile`,
+    resolveCoreApiOrigin(value),
+  ).toString();
+}
+
 export function getCoreWireCheckoutIntentsUrl(value) {
   return new URL(
     "/api/v1/billing/checkout-intents/wire",

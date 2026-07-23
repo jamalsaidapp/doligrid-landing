@@ -6,6 +6,7 @@ import {
   getPaddleClientToken,
   openPaddleCheckout,
 } from "./paddle-client";
+import { completeCheckoutIntent } from "./checkout-complete";
 
 export type CheckoutPlan = {
   id: string;
@@ -205,19 +206,24 @@ export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
         email: email.trim(),
         successUrl: successUrl.toString(),
         onEvent: (event) => {
-          if (event.name === "checkout.completed") {
-            const completedTxn =
-              event.data?.transaction_id ||
-              event.data?.id ||
-              transactionId;
-            const done = new URL(
-              "/checkout/success",
-              window.location.origin,
-            );
-            done.searchParams.set("txn", completedTxn);
-            if (intentId) done.searchParams.set("intent", intentId);
+          if (event.name !== "checkout.completed") return;
+          const completedTxn =
+            event.data?.transaction_id ||
+            event.data?.id ||
+            transactionId;
+          const done = new URL("/checkout/success", window.location.origin);
+          done.searchParams.set("txn", completedTxn);
+          if (intentId) done.searchParams.set("intent", intentId);
+
+          void (async () => {
+            if (intentId) {
+              await completeCheckoutIntent({
+                intentId,
+                providerRef: completedTxn,
+              });
+            }
             window.location.assign(done.toString());
-          }
+          })();
         },
       });
     } catch (err) {

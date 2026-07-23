@@ -43,8 +43,11 @@ Clicking **Acheter** opens a modal to choose:
 
 1. **Carte bancaire** — the landing creates a CheckoutIntent through
    `POST /api/checkout` (Manager → Paddle transaction), then opens the Paddle.js
-   overlay with `providerRef` / `transactionId`. After a successful payment,
-   Paddle webhooks notify SaaS Manager, which activates the subscription.
+   overlay with `providerRef` / `transactionId`. After `checkout.completed`,
+   the landing calls `POST /api/checkout/complete`, which asks Manager
+   `POST /billing/checkout-intents/:id/reconcile` to create the tenant,
+   activate the subscription, and start instance provisioning. Paddle webhooks
+   remain the primary async path; reconcile is the idempotent safety net.
 2. **Virement bancaire** — bank details come from `GET /api/banks`. Submitting
    proof uses `POST /api/wire` (CheckoutIntent + proof upload). Tenant access
    is activated only after an administrator approves the payment in Manager.
