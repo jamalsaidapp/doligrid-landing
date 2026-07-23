@@ -67,7 +67,7 @@ export async function POST(request) {
 
   if (!isAllowedLandingOrigin(request.headers.get("origin"), allowedOrigins)) {
     return NextResponse.json(
-      { message: "Origine de la demande non autorisée." },
+      { message: `Origine de la demande non autorisée. ${request.headers.get("origin")}` },
       { status: 403 },
     );
   }
