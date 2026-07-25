@@ -740,20 +740,53 @@ h3,
 }
 
 .capability-card {
+  position: relative;
   min-height: 270px;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   padding: 34px;
   border: 1px solid var(--line);
   border-radius: 18px;
   background: var(--white);
-  transition: border-color 180ms ease, box-shadow 180ms ease, transform 220ms ease;
+  transition:
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    background 220ms ease;
+  animation: fade-up 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+
+.capability-card::before {
+  position: absolute;
+  top: 0;
+  right: 34px;
+  left: 34px;
+  height: 3px;
+  content: "";
+  border-radius: 0 0 4px 4px;
+  background: linear-gradient(90deg, var(--green-500), var(--lime));
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.capability-card:nth-child(1) { animation-delay: 40ms; }
+.capability-card:nth-child(2) { animation-delay: 100ms; }
+.capability-card:nth-child(3) { animation-delay: 160ms; }
+.capability-card:nth-child(4) { animation-delay: 220ms; }
+.capability-card:nth-child(5) { animation-delay: 280ms; }
+.capability-card:nth-child(6) { animation-delay: 340ms; }
 
 .capability-card:hover {
   border-color: #a6c6b9;
+  background: #fbfefc;
   box-shadow: var(--shadow);
-  transform: translateY(-6px);
+  transform: translateY(-8px);
+}
+
+.capability-card:hover::before {
+  transform: scaleX(1);
 }
 
 .card-icon {
@@ -764,11 +797,12 @@ h3,
   margin-bottom: 27px;
   border-radius: 14px;
   font-size: 24px;
-  transition: transform 280ms ease;
+  transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 220ms ease;
 }
 
 .capability-card:hover .card-icon {
-  transform: scale(1.08) rotate(-3deg);
+  transform: scale(1.1) rotate(-4deg);
+  box-shadow: 0 10px 22px rgba(1, 50, 40, 0.1);
 }
 
 .tone-1 { color: var(--green-700); background: var(--green-100); }
@@ -785,10 +819,24 @@ h3,
   letter-spacing: -0.025em;
 }
 
+.capability-card h3 {
+  transition: color 220ms ease, transform 260ms ease;
+}
+
 .capability-card p {
   margin-bottom: 0;
   color: var(--muted);
   font-size: 15px;
+  transition: color 220ms ease, transform 260ms ease;
+}
+
+.capability-card:hover h3 {
+  color: var(--green-950);
+  transform: translateY(-2px);
+}
+
+.capability-card:hover p {
+  transform: translateY(-2px);
 }
 
 .support {
@@ -1006,10 +1054,37 @@ h3,
 }
 
 .pricing-grid {
+  --pricing-cols: 4;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(var(--pricing-cols), minmax(0, 1fr));
   align-items: stretch;
-  gap: 15px;
+  justify-content: center;
+  gap: 18px;
+  width: min(
+    100%,
+    calc(var(--pricing-cols) * 280px + (var(--pricing-cols) - 1) * 18px)
+  );
+  margin-inline: auto;
+}
+
+.pricing-cols-1 {
+  --pricing-cols: 1;
+  width: min(100%, 360px);
+}
+
+.pricing-cols-2 {
+  --pricing-cols: 2;
+  width: min(100%, 720px);
+}
+
+.pricing-cols-3 {
+  --pricing-cols: 3;
+  width: min(100%, 980px);
+}
+
+.pricing-cols-4 {
+  --pricing-cols: 4;
+  width: 100%;
 }
 
 .pricing-card {
@@ -1975,8 +2050,17 @@ h3,
   }
 
   .pricing-grid {
-    grid-template-columns: repeat(2, 1fr);
     gap: 20px;
+  }
+
+  .pricing-cols-4 {
+    --pricing-cols: 2;
+    width: min(100%, 720px);
+  }
+
+  .pricing-cols-3 {
+    --pricing-cols: 3;
+    width: min(100%, 900px);
   }
 }
 
@@ -2032,6 +2116,16 @@ h3,
 
   .capability-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .pricing-cols-3 {
+    --pricing-cols: 1;
+    width: min(100%, 420px);
+  }
+
+  .pricing-cols-4 {
+    --pricing-cols: 2;
+    width: min(100%, 720px);
   }
 
   .support-intro,
@@ -2124,8 +2218,17 @@ h3,
   }
 
   .capability-grid,
-  .support-grid,
-  .pricing-grid {
+  .support-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pricing-grid,
+  .pricing-cols-1,
+  .pricing-cols-2,
+  .pricing-cols-3,
+  .pricing-cols-4 {
+    --pricing-cols: 1;
+    width: min(100%, 420px);
     grid-template-columns: 1fr;
   }
 
