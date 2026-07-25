@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import BrandLogo from "./BrandLogo";
 
 const navigation = [
   { label: "Accueil", href: "/#accueil" },
@@ -24,13 +25,7 @@ export default function Header() {
     <header className="site-header">
       <div className="container header-inner">
         <Link className="brand" href="/#accueil" aria-label="DoliGrid ERP — Accueil">
-          <span className="brand-mark" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-            <span />
-          </span>
-          <span>DoliGrid <strong>ERP</strong></span>
+          <BrandLogo variant="dark" priority />
         </Link>
 
         <button

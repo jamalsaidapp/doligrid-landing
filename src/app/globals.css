@@ -103,36 +103,28 @@ h3,
   font-weight: 700;
 }
 
-.brand-mark {
-  position: relative;
-  display: inline-grid;
+.brand-logo {
+  display: block;
+  height: auto;
+  flex-shrink: 0;
+}
+
+.brand-logo-full {
+  width: min(188px, 46vw);
+  height: 36px;
+  object-fit: contain;
+  object-position: left center;
+}
+
+.brand-logo-mark {
   width: 38px;
   height: 38px;
-  grid-template-columns: 1fr 1fr;
-  gap: 3px;
-  padding: 5px;
-  overflow: hidden;
-  border-radius: 11px;
-  background: var(--green-950);
-  transform: rotate(4deg);
+  object-fit: contain;
 }
 
-.brand-mark span {
-  display: block;
-  border-radius: 8px 2px 8px 2px;
-  background: var(--green-500);
-}
-
-.brand-mark span:nth-child(2),
-.brand-mark span:nth-child(3) {
-  background: var(--lime);
-}
-
-.brand-mark.small {
+.brand-logo-sm {
   width: 24px;
   height: 24px;
-  padding: 3px;
-  border-radius: 7px;
 }
 
 .main-nav {
@@ -2365,9 +2357,9 @@ h3,
     font-size: 19px;
   }
 
-  .brand-mark {
-    width: 34px;
-    height: 34px;
+  .brand-logo-full {
+    width: min(160px, 52vw);
+    height: 32px;
   }
 
   .support-card {

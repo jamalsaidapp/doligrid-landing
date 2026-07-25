@@ -2,6 +2,42 @@
 
 Next.js landing site for `https://doligrid.com`.
 
+## Brand assets
+
+Logo SVGs live in `public/brand/`:
+
+| File | Use |
+|------|-----|
+| `doligrid-logo-dark.svg` | Full logo on light backgrounds (header) |
+| `doligrid-logo-white.svg` | Full logo on dark backgrounds (footer) |
+| `doligrid-mark-dark.svg` | Icon / mark on light UI |
+| `doligrid-mark-white.svg` | Icon / mark on dark UI |
+| `../favicon.svg` | Site favicon |
+
+The site uses these via `src/app/components/BrandLogo.tsx`.
+
+### Brand colors
+
+CSS variables in `src/app/globals.css` (`:root`):
+
+| Token | Hex | Role |
+|-------|-----|------|
+| `--ink` | `#172c27` | Primary text / dark logo wordmark |
+| `--muted` | `#60716c` | Secondary text |
+| `--green-950` | `#013228` | Logo mark plate (dark green) |
+| `--green-900` | `#073e32` | Deep green surfaces |
+| `--green-700` | `#117b55` | “ERP” accent on dark logo / links |
+| `--green-500` | `#1ad079` | Logo mark cells / brand green |
+| `--green-100` | `#dff9ec` | Soft green backgrounds |
+| `--lime` | `#c9f36a` | Logo mark accent cells / light accents |
+| `--cream` | `#f6f6ed` | Warm page backgrounds |
+| `--white` | `#ffffff` | Page / white logo wordmark |
+| `--line` | `#dce6e2` | Borders / dividers |
+| `--purple` | `#7341f1` | Accent (UI highlights) |
+| `--orange` | `#f79552` | Focus / CTA accent |
+
+Typography: **Sora** (headings / brand), **DM Sans** (body).
+
 ## Local development
 
 Copy `.env.example` to `.env.local`, then configure an exact local browser
