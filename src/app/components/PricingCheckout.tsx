@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
 import {
   extractTransactionId,
   getPaddleClientToken,
@@ -297,7 +297,14 @@ export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
         </p>
       ) : null}
 
-      <div className="pricing-grid">
+      <div
+        className={`pricing-grid pricing-cols-${Math.min(Math.max(plans.length, 1), 4)}`}
+        style={
+          {
+            "--pricing-cols": Math.min(Math.max(plans.length, 1), 4),
+          } as CSSProperties
+        }
+      >
         {plans.map((plan) => (
           <article
             className={`pricing-card ${plan.popular ? "popular" : ""}`}
