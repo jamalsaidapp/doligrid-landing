@@ -1190,6 +1190,15 @@ h3,
   color: var(--green-500);
 }
 
+.pricing-card li.feature-excluded span:not(.visually-hidden) {
+  text-decoration: line-through;
+  opacity: 0.65;
+}
+
+.pricing-card li.feature-excluded i {
+  color: #8a9a94;
+}
+
 .pricing-card.popular .button {
   width: 100%;
 }

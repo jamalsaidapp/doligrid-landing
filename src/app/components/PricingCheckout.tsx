@@ -8,12 +8,17 @@ import {
 } from "./paddle-client";
 import { completeCheckoutIntent } from "./checkout-complete";
 
+export type PlanFeatureBullet = {
+  text: string;
+  included: boolean;
+};
+
 export type CheckoutPlan = {
   id: string;
   name: string;
   slug?: string;
   priceLabel: string;
-  features: string[];
+  features: PlanFeatureBullet[];
   popular?: boolean;
 };
 
@@ -321,11 +326,19 @@ export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
             </p>
             <div className="pricing-divider" />
             <ul>
-              {plan.features.map((feature) => (
-                <li key={feature}>
-                  <i className="bi bi-check-circle-fill" aria-hidden="true" />
-                  <span>{feature}</span>
-                  <span className="visually-hidden">Inclus</span>
+              {plan.features.map((feature, index) => (
+                <li
+                  key={`${feature.text}-${index}`}
+                  className={feature.included ? undefined : "feature-excluded"}
+                >
+                  <i
+                    className={`bi ${feature.included ? "bi-check-circle-fill" : "bi-x-circle"}`}
+                    aria-hidden="true"
+                  />
+                  <span>{feature.text}</span>
+                  <span className="visually-hidden">
+                    {feature.included ? "Inclus" : "Non inclus"}
+                  </span>
                 </li>
               ))}
             </ul>
