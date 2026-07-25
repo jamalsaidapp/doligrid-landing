@@ -21,6 +21,10 @@ export const metadata: Metadata = {
   title: "DoliGrid ERP | Pilotez toute votre entreprise",
   description:
     "DoliGrid ERP unifie ventes, finances, stocks, ressources humaines et projets sur une plateforme fiable et sécurisée.",
+  icons: {
+    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+  },
   openGraph: {
     title: "DoliGrid ERP | Une seule source de vérité",
     description:

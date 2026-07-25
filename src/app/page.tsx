@@ -1,4 +1,5 @@
 import Link from "next/link";
+import BrandLogo from "./components/BrandLogo";
 import Header from "./components/Header";
 import PricingCheckout, {
   type CheckoutPlan,
@@ -309,8 +310,8 @@ export default async function Home() {
             <div className="dashboard-visual" aria-label="Aperçu illustré du tableau de bord DoliGrid ERP">
               <div className="dashboard-top">
                 <div className="dashboard-logo">
-                  <span className="brand-mark small" aria-hidden="true"><span /><span /><span /><span /></span>
-                  DoliGrid
+                  <BrandLogo variant="dark" markOnly className="brand-logo-sm" />
+                  <span>DoliGrid</span>
                 </div>
                 <div className="dashboard-search"><i className="bi bi-search" aria-hidden="true" />Rechercher</div>
                 <div className="avatar" aria-hidden="true">DG</div>
@@ -484,8 +485,7 @@ export default async function Home() {
         <div className="container footer-main">
           <div className="footer-brand">
             <a className="brand brand-light" href="#accueil" aria-label="DoliGrid ERP — Retour à l’accueil">
-              <span className="brand-mark" aria-hidden="true"><span /><span /><span /><span /></span>
-              <span>DoliGrid <strong>ERP</strong></span>
+              <BrandLogo variant="white" />
             </a>
             <p>Une plateforme ERP fiable pour réunir vos opérations et faire avancer vos équipes.</p>
             <a href="mailto:contact@doligrid.com">contact@doligrid.com</a>

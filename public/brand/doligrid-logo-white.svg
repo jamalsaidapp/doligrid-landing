@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 56" fill="none" role="img" aria-label="DoliGrid ERP">
+  <title>DoliGrid ERP - white (for dark backgrounds)</title>
+  <g transform="translate(2 8) rotate(4 19 19)">
+    <rect width="38" height="38" rx="11" fill="#013228"/>
+    <rect x="5" y="5" width="13" height="13" rx="3" fill="#1ad079"/>
+    <rect x="20" y="5" width="13" height="13" rx="3" fill="#c9f36a"/>
+    <rect x="5" y="20" width="13" height="13" rx="3" fill="#c9f36a"/>
+    <rect x="20" y="20" width="13" height="13" rx="3" fill="#1ad079"/>
+  </g>
+  <text
+    x="54"
+    y="37"
+    fill="#ffffff"
+    font-family="Sora, Arial, sans-serif"
+    font-size="28"
+    font-weight="700"
+    letter-spacing="-1.1"
+  >DoliGrid <tspan fill="#c9f36a">ERP</tspan></text>
+</svg>
