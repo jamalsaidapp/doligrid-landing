@@ -188,11 +188,21 @@ h3,
   font-size: 14px;
   font-weight: 700;
   line-height: 1.2;
-  transition: color 180ms ease, background 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+  transition: color 180ms ease, background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
 
 .button:hover {
   box-shadow: 0 12px 28px rgba(1, 50, 40, 0.16);
+  transform: translateY(-2px);
+}
+
+.button i {
+  display: inline-block;
+  transition: transform 220ms ease;
+}
+
+.button:hover i.bi-arrow-right {
+  transform: translateX(4px);
 }
 
 .button-small {
@@ -270,6 +280,7 @@ h3,
   position: absolute;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 50%;
+  animation: orb-breathe 10s ease-in-out infinite;
 }
 
 .hero-orb-one {
@@ -285,6 +296,8 @@ h3,
   height: 300px;
   bottom: -180px;
   left: 18%;
+  animation-delay: -4s;
+  animation-duration: 12s;
 }
 
 .hero-kicker,
@@ -329,11 +342,28 @@ h3,
   color: #b8cdc7;
 }
 
+.hero-copy {
+  animation: fade-up 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 .hero-actions {
   display: flex;
   align-items: center;
   gap: 26px;
   margin-bottom: 34px;
+}
+
+.hero-actions .button-accent i.bi-arrow-right {
+  animation: arrow-nudge-x 1.6s ease-in-out infinite;
+}
+
+.hero-actions .text-link i.bi-arrow-down {
+  animation: arrow-nudge-y 1.5s ease-in-out infinite;
+}
+
+.hero-actions .button-accent:hover i.bi-arrow-right,
+.hero-actions .text-link:hover i.bi-arrow-down {
+  animation-play-state: paused;
 }
 
 .text-link {
@@ -342,6 +372,16 @@ h3,
   gap: 8px;
   border-bottom: 1px solid currentColor;
   font-weight: 700;
+  transition: opacity 180ms ease, gap 180ms ease;
+}
+
+.text-link i {
+  display: inline-block;
+  transition: transform 220ms ease;
+}
+
+.text-link:hover {
+  opacity: 0.88;
 }
 
 .light-link {
@@ -372,6 +412,7 @@ h3,
   background: #f6faf8;
   box-shadow: 0 44px 90px rgba(0, 20, 15, 0.36);
   transform: perspective(1400px) rotateY(-4deg) rotateX(1deg);
+  animation: dashboard-rise 900ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
 }
 
 .dashboard-top {
@@ -500,6 +541,12 @@ h3,
   border: 1px solid #e4ece9;
   border-radius: 9px;
   background: var(--white);
+  transition: transform 220ms ease, box-shadow 220ms ease;
+}
+
+.metric-grid > div:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 22px rgba(1, 50, 40, 0.08);
 }
 
 .metric-icon {
@@ -595,10 +642,15 @@ h3,
   stroke: var(--green-500);
   stroke-linecap: round;
   stroke-width: 3;
+  stroke-dasharray: 700;
+  stroke-dashoffset: 700;
+  animation: chart-draw 1.8s ease-out 0.6s forwards;
 }
 
 .chart-fill {
   fill: url("#chart-fill");
+  opacity: 0;
+  animation: chart-fill-in 1s ease-out 1.2s forwards;
 }
 
 .floating-card {
@@ -611,6 +663,7 @@ h3,
   border-radius: 11px;
   background: var(--white);
   box-shadow: 0 18px 45px rgba(1, 34, 27, 0.2);
+  will-change: transform;
 }
 
 .floating-card div {
@@ -630,11 +683,14 @@ h3,
 .floating-stock {
   right: -28px;
   bottom: 33px;
+  animation: float-card 4.2s ease-in-out infinite;
 }
 
 .floating-secure {
   top: 90px;
   left: -36px;
+  animation: float-card 5s ease-in-out infinite reverse;
+  animation-delay: -1.2s;
 }
 
 .floating-secure > i {
@@ -691,12 +747,13 @@ h3,
   border: 1px solid var(--line);
   border-radius: 18px;
   background: var(--white);
-  transition: border-color 180ms ease, box-shadow 180ms ease;
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 220ms ease;
 }
 
 .capability-card:hover {
   border-color: #a6c6b9;
   box-shadow: var(--shadow);
+  transform: translateY(-6px);
 }
 
 .card-icon {
@@ -707,6 +764,11 @@ h3,
   margin-bottom: 27px;
   border-radius: 14px;
   font-size: 24px;
+  transition: transform 280ms ease;
+}
+
+.capability-card:hover .card-icon {
+  transform: scale(1.08) rotate(-3deg);
 }
 
 .tone-1 { color: var(--green-700); background: var(--green-100); }
@@ -896,6 +958,7 @@ h3,
   box-shadow: 0 12px 28px rgba(1, 50, 40, 0.16);
   font-size: 10px;
   font-weight: 700;
+  animation: float-soft 3.8s ease-in-out infinite reverse;
 }
 
 .expert-art {
@@ -914,6 +977,7 @@ h3,
   background: var(--lime);
   box-shadow: 0 0 0 20px rgba(201,243,106,.08), 0 0 0 40px rgba(201,243,106,.04);
   font-size: 52px;
+  animation: pulse-glow 2.8s ease-in-out infinite;
 }
 
 .status-pill {
@@ -924,6 +988,7 @@ h3,
   border-radius: 999px;
   background: rgba(255,255,255,.1);
   font-size: 9px;
+  animation: float-soft 3.4s ease-in-out infinite;
 }
 
 .status-pill i {
@@ -933,6 +998,7 @@ h3,
   margin-right: 5px;
   border-radius: 50%;
   background: var(--green-500);
+  animation: status-blink 1.8s ease-in-out infinite;
 }
 
 .pricing {
@@ -954,11 +1020,22 @@ h3,
   border: 1px solid var(--line);
   border-radius: 18px;
   background: var(--white);
+  transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+}
+
+.pricing-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 18px 40px rgba(1, 50, 40, 0.1);
 }
 
 .pricing-card.popular {
   border: 2px solid var(--green-500);
   box-shadow: var(--shadow);
+}
+
+.pricing-card.popular:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 24px 50px rgba(1, 50, 40, 0.14);
 }
 
 .pricing-card > .button {
@@ -1377,6 +1454,13 @@ h3,
   border: 1px solid rgba(255,255,255,.11);
   border-radius: 14px;
   background: rgba(255,255,255,.055);
+  transition: background 220ms ease, transform 220ms ease, border-color 220ms ease;
+}
+
+.trust-items article:hover {
+  background: rgba(255,255,255,.1);
+  border-color: rgba(255,255,255,.2);
+  transform: translateX(6px);
 }
 
 .trust-items article > span {
@@ -1746,6 +1830,116 @@ h3,
   *::after {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dashboard-rise {
+  from {
+    opacity: 0;
+    transform: perspective(1400px) rotateY(-4deg) rotateX(1deg) translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: perspective(1400px) rotateY(-4deg) rotateX(1deg) translateY(0);
+  }
+}
+
+@keyframes float-card {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes float-soft {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes arrow-nudge-x {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(6px);
+  }
+}
+
+@keyframes arrow-nudge-y {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(5px);
+  }
+}
+
+@keyframes orb-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 0.85;
+  }
+}
+
+@keyframes chart-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes chart-fill-in {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 20px rgba(201, 243, 106, 0.08), 0 0 0 40px rgba(201, 243, 106, 0.04);
+  }
+  50% {
+    box-shadow: 0 0 0 28px rgba(201, 243, 106, 0.12), 0 0 0 56px rgba(201, 243, 106, 0.05);
+  }
+}
+
+@keyframes status-blink {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.85);
   }
 }
 
@@ -1761,6 +1955,7 @@ h3,
 
   .dashboard-visual {
     transform: none;
+    animation: fade-up 900ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
   }
 
   .floating-card {
