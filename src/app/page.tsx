@@ -57,7 +57,7 @@ const fallbackPlans: CheckoutPlan[] = [
       "Support 24/7",
       "Formation",
       "Sauvegarde",
-    ],
+    ].map((text) => ({ text, included: true })),
   },
   {
     id: "fallback-agence",
@@ -71,7 +71,7 @@ const fallbackPlans: CheckoutPlan[] = [
       "Support 24/7",
       "Formation",
       "Sauvegarde",
-    ],
+    ].map((text) => ({ text, included: true })),
   },
   {
     id: "fallback-entreprise",
@@ -86,7 +86,7 @@ const fallbackPlans: CheckoutPlan[] = [
       "Support 24/7",
       "Formation",
       "Sauvegarde",
-    ],
+    ].map((text) => ({ text, included: true })),
   },
   {
     id: "fallback-entreprise-plus",
@@ -100,7 +100,7 @@ const fallbackPlans: CheckoutPlan[] = [
       "Support 24/7",
       "Formation",
       "Sauvegarde",
-    ],
+    ].map((text) => ({ text, included: true })),
   },
 ];
 
@@ -112,25 +112,41 @@ function normalizeKey(value: string) {
     .replace(/[^a-z0-9]+/g, "");
 }
 
-function featureLabels(features: unknown): string[] {
+function featureItems(
+  features: unknown,
+): Array<{ text: string; included: boolean }> {
   if (Array.isArray(features)) {
-    return features
-      .map((f) => {
-        if (typeof f === "string") return f;
-        if (f && typeof f === "object" && typeof (f as { text?: string }).text === "string") {
-          return (f as { included?: boolean; text: string }).included === false
-            ? null
-            : (f as { text: string }).text;
-        }
-        return null;
-      })
-      .filter((t): t is string => !!t);
+    const out: Array<{ text: string; included: boolean }> = [];
+    for (const f of features) {
+      if (typeof f === "string" && f.trim()) {
+        out.push({ text: f.trim(), included: true });
+        continue;
+      }
+      if (f && typeof f === "object" && typeof (f as { text?: string }).text === "string") {
+        const text = (f as { text: string }).text.trim();
+        if (!text) continue;
+        out.push({
+          text,
+          included: (f as { included?: boolean }).included !== false,
+        });
+      }
+    }
+    return out;
   }
   if (features && typeof features === "object") {
     const obj = features as Record<string, unknown>;
-    if (Array.isArray(obj.marketingFeatures)) {
-      return featureLabels(obj.marketingFeatures);
-    }
+    // Merge both keys — empty marketingFeatures must not hide a legacy features list.
+    const merged = [
+      ...featureItems(obj.marketingFeatures),
+      ...featureItems(obj.features),
+    ];
+    const seen = new Set<string>();
+    return merged.filter((item) => {
+      const key = item.text.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
   return [];
 }
@@ -178,7 +194,7 @@ async function loadCheckoutPlans(): Promise<{
         cents > 0
           ? String(Math.round(cents / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, " ")
           : fallback.priceLabel;
-      const features = featureLabels(match.features);
+      const features = featureItems(match.features);
       return {
         id: match.id,
         name: match.title || match.name || fallback.name,
@@ -204,7 +220,7 @@ async function loadCheckoutPlans(): Promise<{
           " ",
         ),
         popular: index === Math.min(2, remote.length - 1),
-        features: featureLabels(p.features),
+        features: featureItems(p.features),
       })),
       checkoutEnabled: true,
     };
