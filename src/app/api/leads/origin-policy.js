@@ -13,8 +13,56 @@ export class LandingConfigError extends Error {
   }
 }
 
+/**
+ * Coerce allowlist / public-URL candidates before URL parsing.
+ * Bare hostnames (and host:port) are treated as https://host — so
+ * `www.example.com` in ALLOWED_LANDING_ORIGINS works without a scheme.
+ * Paths/query/hash on bare hosts are rejected; wildcards stay rejected upstream.
+ * Local http origins still need an explicit `http://` scheme.
+ * @param {string} value
+ */
+export function coerceOriginInput(value) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    throw new LandingConfigError(
+      "INVALID_ORIGIN",
+      "Origin must be an HTTP(S) URL without credentials",
+    );
+  }
+
+  const hasScheme = /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed);
+  if (hasScheme) {
+    return trimmed;
+  }
+
+  if (
+    trimmed.includes("/") ||
+    trimmed.includes("?") ||
+    trimmed.includes("#") ||
+    trimmed.includes("@") ||
+    trimmed.includes("\\")
+  ) {
+    throw new LandingConfigError(
+      "INVALID_ORIGIN_ALLOWLIST",
+      "Bare host entries must be hostname[:port] only (no path). Prefer https://host, or http://localhost:3000 for local dev.",
+    );
+  }
+
+  return `https://${trimmed}`;
+}
+
 export function normalizeOrigin(value) {
-  const url = new URL(value.trim());
+  let url;
+  try {
+    url = new URL(coerceOriginInput(value));
+  } catch (error) {
+    if (error instanceof LandingConfigError) throw error;
+    throw new LandingConfigError(
+      "INVALID_ORIGIN",
+      "Origin must be an HTTP(S) URL without credentials",
+    );
+  }
+
   if (
     !HTTP_PROTOCOLS.has(url.protocol) ||
     url.username ||
@@ -44,14 +92,22 @@ export function getAllowedLandingOrigins(env = process.env) {
   ) {
     throw new LandingConfigError(
       "INVALID_ORIGIN_ALLOWLIST",
-      "Set LANDING_PUBLIC_URL and/or ALLOWED_LANDING_ORIGINS to exact origins (no wildcards). Include http://localhost:3000 and http://127.0.0.1:3000 for local dev.",
+      "Set LANDING_PUBLIC_URL and/or ALLOWED_LANDING_ORIGINS to exact origins (no wildcards). Bare hosts are normalized to https://host. Include http://localhost:3000 and http://127.0.0.1:3000 for local dev.",
     );
   }
 
   try {
     return new Set(values.map(normalizeOrigin));
   } catch (error) {
-    if (error instanceof LandingConfigError) throw error;
+    if (error instanceof LandingConfigError) {
+      if (error.code === "INVALID_ORIGIN") {
+        throw new LandingConfigError(
+          "INVALID_ORIGIN_ALLOWLIST",
+          "Landing origin allowlist is not configured correctly. Use https://host (or bare hostnames), never wildcards or paths. Include http://localhost:3000 and http://127.0.0.1:3000 for local dev.",
+        );
+      }
+      throw error;
+    }
     throw new LandingConfigError(
       "INVALID_ORIGIN_ALLOWLIST",
       "Landing origin allowlist is not configured correctly",

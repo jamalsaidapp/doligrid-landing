@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  coerceOriginInput,
   getAllowedLandingOrigins,
   isAllowedLandingOrigin,
   isBrowserSafePortalOrigin,
+  normalizeOrigin,
   requirePlatformApiKey,
   serviceUnavailableBody,
 } from "../src/app/api/leads/origin-policy.js";
@@ -26,6 +28,43 @@ test("allowlist accepts localhost and 127.0.0.1 as distinct origins", () => {
   assert.equal(
     isAllowedLandingOrigin("https://evil.example", allowed),
     false,
+  );
+});
+
+test("bare hostnames in allowlist normalize to https origins", () => {
+  assert.equal(coerceOriginInput("www.doligrid.com"), "https://www.doligrid.com");
+  assert.equal(normalizeOrigin("doligrid.com"), "https://doligrid.com");
+  assert.equal(normalizeOrigin("www.doligrid.com"), "https://www.doligrid.com");
+
+  const allowed = getAllowedLandingOrigins({
+    LANDING_PUBLIC_URL: "doligrid.com",
+    ALLOWED_LANDING_ORIGINS:
+      "https://www.doligrid.com,www.doligrid.com,doligrid.com,http://localhost:3000",
+  });
+
+  assert.equal(isAllowedLandingOrigin("https://doligrid.com", allowed), true);
+  assert.equal(isAllowedLandingOrigin("https://www.doligrid.com", allowed), true);
+  assert.equal(isAllowedLandingOrigin("http://localhost:3000", allowed), true);
+  // Bare localhost would become https:// — local testing needs explicit http://
+  assert.equal(isAllowedLandingOrigin("http://127.0.0.1:3000", allowed), false);
+});
+
+test("bare hosts with paths or wildcards are rejected", () => {
+  assert.throws(
+    () =>
+      getAllowedLandingOrigins({
+        LANDING_PUBLIC_URL: "https://doligrid.com",
+        ALLOWED_LANDING_ORIGINS: "doligrid.com/path",
+      }),
+    (error) => error.code === "INVALID_ORIGIN_ALLOWLIST",
+  );
+  assert.throws(
+    () =>
+      getAllowedLandingOrigins({
+        LANDING_PUBLIC_URL: "https://doligrid.com",
+        ALLOWED_LANDING_ORIGINS: "*.doligrid.com",
+      }),
+    (error) => error.code === "INVALID_ORIGIN_ALLOWLIST",
   );
 });
 
