@@ -128,8 +128,10 @@ ALLOWED_LANDING_ORIGINS=
 ```
 
 `LANDING_PUBLIC_URL` and every `ALLOWED_LANDING_ORIGINS` entry are normalized
-to scheme, hostname, and port. Wildcards are rejected. Localhost is not
-implicitly trusted and must be explicitly configured. The route does not use
+to scheme, hostname, and port. Bare hostnames (no scheme) are treated as
+`https://host`. Wildcards and bare hosts with paths are rejected. Localhost is
+not implicitly trusted — list `http://localhost:3000` and
+`http://127.0.0.1:3000` explicitly for local testing. The route does not use
 `Host`, `X-Forwarded-Host`, or `Referer` for authorization.
 
 `CORE_API_URL` may be the Core origin or end in `/api/v1` (an existing
