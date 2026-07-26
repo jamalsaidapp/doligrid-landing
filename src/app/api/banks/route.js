@@ -2,6 +2,9 @@ import { NextResponse } from "next/server.js";
 import {
   getCoreBankAccountsUrl,
   getLeadForwardHeaders,
+  requirePlatformApiKey,
+  serviceUnavailableBody,
+  upstreamFailureBody,
 } from "../leads/origin-policy.js";
 
 export const runtime = "nodejs";
@@ -46,14 +49,17 @@ function sanitizeBank(value) {
 
 /** Public bank details → same-origin BFF → authenticated Manager Core. */
 export async function GET() {
-  const apiKey = process.env.PLATFORM_API_KEY?.trim();
+  let apiKey;
   let banksUrl;
   try {
     banksUrl = getCoreBankAccountsUrl(process.env.CORE_API_URL);
-    if (!apiKey) throw new Error("Platform API key is not configured");
-  } catch {
+    apiKey = requirePlatformApiKey();
+  } catch (error) {
     return NextResponse.json(
-      { message: "Les coordonnées bancaires sont temporairement indisponibles." },
+      serviceUnavailableBody(
+        "Les coordonnées bancaires sont temporairement indisponibles.",
+        error,
+      ),
       { status: 503 },
     );
   }
@@ -73,7 +79,10 @@ export async function GET() {
 
   if (!response.ok) {
     return NextResponse.json(
-      { message: "Les coordonnées bancaires n’ont pas pu être chargées." },
+      upstreamFailureBody(
+        response.status,
+        "Les coordonnées bancaires n’ont pas pu être chargées.",
+      ),
       { status: response.status },
     );
   }

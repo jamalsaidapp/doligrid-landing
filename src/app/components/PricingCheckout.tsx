@@ -141,7 +141,15 @@ export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
       const res = await fetch("/api/banks");
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.message || "Coordonnées bancaires indisponibles.");
+        const detail =
+          typeof data.detail === "string" && data.detail.trim()
+            ? data.detail.trim()
+            : "";
+        const message =
+          typeof data.message === "string" && data.message.trim()
+            ? data.message.trim()
+            : "Coordonnées bancaires indisponibles.";
+        throw new Error(detail && detail !== message ? `${message} — ${detail}` : message);
       }
       setBanks(Array.isArray(data.banks) ? data.banks : []);
       setBanksLoaded(true);
@@ -192,7 +200,15 @@ export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.message || `Checkout failed (${res.status})`);
+        const detail =
+          typeof data.detail === "string" && data.detail.trim()
+            ? data.detail.trim()
+            : "";
+        const message =
+          typeof data.message === "string" && data.message.trim()
+            ? data.message.trim()
+            : `Checkout failed (${res.status})`;
+        throw new Error(detail && detail !== message ? `${message} — ${detail}` : message);
       }
 
       const transactionId = extractTransactionId(data);
@@ -259,9 +275,15 @@ export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
       const res = await fetch("/api/wire", { method: "POST", body });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(
-          data.message || "Le justificatif n’a pas pu être envoyé.",
-        );
+        const detail =
+          typeof data.detail === "string" && data.detail.trim()
+            ? data.detail.trim()
+            : "";
+        const message =
+          typeof data.message === "string" && data.message.trim()
+            ? data.message.trim()
+            : "Le justificatif n’a pas pu être envoyé.";
+        throw new Error(detail && detail !== message ? `${message} — ${detail}` : message);
       }
 
       const portalUrl =

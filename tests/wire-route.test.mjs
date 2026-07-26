@@ -7,6 +7,8 @@ const ENV_KEYS = [
   "ALLOWED_LANDING_ORIGINS",
   "CORE_API_URL",
   "PLATFORM_API_KEY",
+  "PORTAL_URL",
+  "NEXT_PUBLIC_PORTAL_URL",
 ];
 const originalEnv = Object.fromEntries(
   ENV_KEYS.map((key) => [key, process.env[key]]),
@@ -162,4 +164,43 @@ test("never reflects upstream internals or API keys", async () => {
 
   assert.equal(response.status, 500);
   assert.doesNotMatch(text, /server-secret|database|internal detail/);
+});
+
+test("omits portal redirect when Core origin is 0.0.0.0", async () => {
+  Object.assign(process.env, {
+    LANDING_PUBLIC_URL: "https://doligrid.com",
+    ALLOWED_LANDING_ORIGINS: "",
+    CORE_API_URL: "http://0.0.0.0:3001/api/v1",
+    PLATFORM_API_KEY: "server-secret",
+    PORTAL_URL: "",
+    NEXT_PUBLIC_PORTAL_URL: "",
+  });
+  global.fetch = async (url) => {
+    if (String(url).includes("/checkout-intents/wire")) {
+      return new Response(
+        JSON.stringify({ id: "intent-1", provider: "WIRE", status: "PENDING" }),
+        { status: 201, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    return new Response(
+      JSON.stringify({ id: "wire-1", status: "PENDING" }),
+      { status: 201, headers: { "Content-Type": "application/json" } },
+    );
+  };
+
+  const response = await POST(wireRequest());
+  const data = await response.json();
+
+  assert.equal(response.status, 201);
+  assert.equal(data.portalUrl, null);
+});
+
+test("returns a typed 503 when PLATFORM_API_KEY is missing", async () => {
+  configure();
+  delete process.env.PLATFORM_API_KEY;
+  const response = await POST(wireRequest());
+  const body = await response.json();
+  assert.equal(response.status, 503);
+  assert.equal(body.code, "MISSING_PLATFORM_API_KEY");
+  assert.doesNotMatch(JSON.stringify(body), /server-secret/);
 });

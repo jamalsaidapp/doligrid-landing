@@ -218,8 +218,10 @@ test("configuration and upstream failures never expose the API key", async () =>
   const configurationResponse = await POST(
     request({ name: "Jane Doe", email: "jane@example.com" }),
   );
+  const configurationBody = await configurationResponse.json();
   assert.equal(configurationResponse.status, 503);
-  assert.doesNotMatch(await configurationResponse.text(), /test-platform-secret/);
+  assert.equal(configurationBody.code, "MISSING_CORE_API_URL");
+  assert.doesNotMatch(JSON.stringify(configurationBody), /test-platform-secret/);
 
   configure();
   global.fetch = async () =>

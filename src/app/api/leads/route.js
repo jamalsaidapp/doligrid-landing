@@ -4,6 +4,9 @@ import {
   getCoreLeadsUrl,
   getLeadForwardHeaders,
   isAllowedLandingOrigin,
+  requirePlatformApiKey,
+  serviceUnavailableBody,
+  upstreamFailureBody,
 } from "./origin-policy.js";
 
 export const runtime = "nodejs";
@@ -85,17 +88,18 @@ function safeUpstreamMessage() {
 export async function POST(request) {
   let allowedOrigins;
   let leadsUrl;
-  const apiKey = process.env.PLATFORM_API_KEY?.trim();
+  let apiKey;
 
   try {
     allowedOrigins = getAllowedLandingOrigins();
     leadsUrl = getCoreLeadsUrl(process.env.CORE_API_URL);
-    if (!apiKey) {
-      throw new Error("Platform API key is not configured");
-    }
-  } catch {
+    apiKey = requirePlatformApiKey();
+  } catch (error) {
     return NextResponse.json(
-      { message: "Les demandes de démo sont temporairement indisponibles." },
+      serviceUnavailableBody(
+        "Les demandes de démo sont temporairement indisponibles.",
+        error,
+      ),
       { status: 503 },
     );
   }
@@ -104,7 +108,15 @@ export async function POST(request) {
   // host, and Referer headers are intentionally not trusted.
   if (!isAllowedLandingOrigin(request.headers.get("origin"), allowedOrigins)) {
     return NextResponse.json(
-      { message: "Origine de la demande non autorisée." },
+      {
+        message: "Origine de la demande non autorisée.",
+        code: "ORIGIN_NOT_ALLOWED",
+        ...(process.env.NODE_ENV === "development"
+          ? {
+              detail: `Origin "${request.headers.get("origin") || "(missing)"}" is not in LANDING_PUBLIC_URL / ALLOWED_LANDING_ORIGINS.`,
+            }
+          : {}),
+      },
       { status: 403 },
     );
   }
@@ -182,7 +194,7 @@ export async function POST(request) {
 
   if (!upstreamResponse.ok) {
     return NextResponse.json(
-      { message: safeUpstreamMessage() },
+      upstreamFailureBody(upstreamResponse.status, safeUpstreamMessage()),
       { status: upstreamResponse.status },
     );
   }

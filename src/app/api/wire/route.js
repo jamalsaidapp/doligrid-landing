@@ -6,6 +6,10 @@ import {
   getCoreWirePaymentsUrl,
   getLeadForwardHeaders,
   isAllowedLandingOrigin,
+  isBrowserSafePortalOrigin,
+  requirePlatformApiKey,
+  serviceUnavailableBody,
+  upstreamFailureBody,
 } from "../leads/origin-policy.js";
 
 export const runtime = "nodejs";
@@ -86,13 +90,21 @@ function resolvePortalBaseUrl() {
   )
     .trim()
     .replace(/\/+$/, "");
-  if (explicit) return explicit;
+  if (explicit) {
+    try {
+      const origin = new URL(explicit).origin;
+      return isBrowserSafePortalOrigin(origin) ? origin : null;
+    } catch {
+      return null;
+    }
+  }
 
   const core = (process.env.CORE_API_URL || "").trim();
   if (!core) return null;
   try {
-    const url = new URL(core);
-    return url.origin;
+    const origin = new URL(core).origin;
+    // Avoid redirecting browsers to http://0.0.0.0 when Core binds all interfaces.
+    return isBrowserSafePortalOrigin(origin) ? origin : null;
   } catch {
     return null;
   }
@@ -110,7 +122,7 @@ function buildWirePortalLoginUrl(email) {
 
 /** Browser wire form → wire CheckoutIntent → linked proof submission. */
 export async function POST(request) {
-  const apiKey = process.env.PLATFORM_API_KEY?.trim();
+  let apiKey;
   let allowedOrigins;
   let intentUrl;
   let paymentsUrl;
@@ -118,13 +130,30 @@ export async function POST(request) {
     allowedOrigins = getAllowedLandingOrigins();
     intentUrl = getCoreWireCheckoutIntentsUrl(process.env.CORE_API_URL);
     paymentsUrl = getCoreWirePaymentsUrl(process.env.CORE_API_URL);
-    if (!apiKey) throw new Error("Platform API key is not configured");
-  } catch {
-    return safeError("Le virement bancaire est temporairement indisponible.", 503);
+    apiKey = requirePlatformApiKey();
+  } catch (error) {
+    return NextResponse.json(
+      serviceUnavailableBody(
+        "Le virement bancaire est temporairement indisponible.",
+        error,
+      ),
+      { status: 503 },
+    );
   }
 
   if (!isAllowedLandingOrigin(request.headers.get("origin"), allowedOrigins)) {
-    return safeError("Origine de la demande non autorisée.", 403);
+    return NextResponse.json(
+      {
+        message: "Origine de la demande non autorisée.",
+        code: "ORIGIN_NOT_ALLOWED",
+        ...(process.env.NODE_ENV === "development"
+          ? {
+              detail: `Origin "${request.headers.get("origin") || "(missing)"}" is not in LANDING_PUBLIC_URL / ALLOWED_LANDING_ORIGINS. Add http://127.0.0.1:3000 if you open the site that way.`,
+            }
+          : {}),
+      },
+      { status: 403 },
+    );
   }
   const contentType = request.headers.get("content-type") || "";
   if (!contentType.toLowerCase().startsWith("multipart/form-data;")) {
@@ -206,10 +235,10 @@ export async function POST(request) {
     intent = null;
   }
   if (!intentResponse.ok || !intent || typeof intent.id !== "string") {
-    return safeError(
-      "La demande de virement n’a pas pu être créée. Veuillez réessayer.",
-      intentResponse.ok ? 502 : intentResponse.status,
-    );
+    const status = intentResponse.ok ? 502 : intentResponse.status;
+    const fallback =
+      "La demande de virement n’a pas pu être créée. Veuillez réessayer.";
+    return NextResponse.json(upstreamFailureBody(status, fallback), { status });
   }
 
   const upstreamForm = new FormData();
@@ -236,10 +265,10 @@ export async function POST(request) {
     payment = null;
   }
   if (!proofResponse.ok || !payment || typeof payment.id !== "string") {
-    return safeError(
-      "Le justificatif n’a pas pu être envoyé. Veuillez réessayer.",
-      proofResponse.ok ? 502 : proofResponse.status,
-    );
+    const status = proofResponse.ok ? 502 : proofResponse.status;
+    const fallback =
+      "Le justificatif n’a pas pu être envoyé. Veuillez réessayer.";
+    return NextResponse.json(upstreamFailureBody(status, fallback), { status });
   }
 
   return NextResponse.json(
