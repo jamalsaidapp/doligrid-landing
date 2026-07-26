@@ -4,6 +4,9 @@ import {
   getCoreCheckoutIntentReconcileUrl,
   getLeadForwardHeaders,
   isAllowedLandingOrigin,
+  requirePlatformApiKey,
+  serviceUnavailableBody,
+  upstreamFailureBody,
 } from "../../leads/origin-policy.js";
 
 export const runtime = "nodejs";
@@ -51,23 +54,32 @@ async function readJsonBody(request) {
  */
 export async function POST(request) {
   let allowedOrigins;
-  const apiKey = process.env.PLATFORM_API_KEY?.trim();
+  let apiKey;
 
   try {
     allowedOrigins = getAllowedLandingOrigins();
-    if (!apiKey) {
-      throw new Error("Platform API key is not configured");
-    }
-  } catch {
+    apiKey = requirePlatformApiKey();
+  } catch (error) {
     return NextResponse.json(
-      { message: "La finalisation du paiement est temporairement indisponible." },
+      serviceUnavailableBody(
+        "La finalisation du paiement est temporairement indisponible.",
+        error,
+      ),
       { status: 503 },
     );
   }
 
   if (!isAllowedLandingOrigin(request.headers.get("origin"), allowedOrigins)) {
     return NextResponse.json(
-      { message: "Origine de la demande non autorisée." },
+      {
+        message: "Origine de la demande non autorisée.",
+        code: "ORIGIN_NOT_ALLOWED",
+        ...(process.env.NODE_ENV === "development"
+          ? {
+              detail: `Origin "${request.headers.get("origin") || "(missing)"}" is not in LANDING_PUBLIC_URL / ALLOWED_LANDING_ORIGINS.`,
+            }
+          : {}),
+      },
       { status: 403 },
     );
   }
@@ -113,9 +125,12 @@ export async function POST(request) {
       process.env.CORE_API_URL,
       intentId,
     );
-  } catch {
+  } catch (error) {
     return NextResponse.json(
-      { message: "La finalisation du paiement est temporairement indisponible." },
+      serviceUnavailableBody(
+        "La finalisation du paiement est temporairement indisponible.",
+        error,
+      ),
       { status: 503 },
     );
   }
@@ -144,12 +159,11 @@ export async function POST(request) {
   }
 
   if (!upstreamResponse.ok) {
+    const fallback =
+      (data && typeof data.message === "string" && data.message) ||
+      "L’abonnement n’a pas pu être activé. Veuillez réessayer.";
     return NextResponse.json(
-      {
-        message:
-          (data && typeof data.message === "string" && data.message) ||
-          "L’abonnement n’a pas pu être activé. Veuillez réessayer.",
-      },
+      upstreamFailureBody(upstreamResponse.status, fallback),
       { status: upstreamResponse.status },
     );
   }

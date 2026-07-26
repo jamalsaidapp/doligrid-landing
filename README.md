@@ -40,18 +40,25 @@ Typography: **Sora** (headings / brand), **DM Sans** (body).
 
 ## Local development
 
-Copy `.env.example` to `.env.local`, then configure an exact local browser
-origin such as:
+Copy `.env.example` to `.env` or `.env.local`, then configure origins and Core:
 
 ```dotenv
-LANDING_PUBLIC_URL=http://localhost:3000
+LANDING_PUBLIC_URL=https://doligrid.com
+# Exact Origins only — localhost and 127.0.0.1 are different; list both if needed.
+ALLOWED_LANDING_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 # Either the Core origin or its /api/v1 URL is accepted.
 CORE_API_URL=https://manager.frametoy.online/api/v1
 PRODUCT_SLUG=doligrid
+# Must match Manager Admin → Settings → Platform API Key (DB value, not env on Manager).
 PLATFORM_API_KEY=<server-only-platform-api-key>
 ```
 
-Install dependencies and run `npm run dev`.
+Install dependencies and run `npm run dev`. **Restart the Next.js process after
+any `.env` / `.env.local` change** — env is read at process start.
+
+In development, checkout/wire/banks/leads `503`/`403` responses include a
+`code` and `detail` field (never the API key) so misconfiguration is visible in
+the UI instead of only “temporairement indisponible”.
 
 ## Demo request integration
 
@@ -131,9 +138,11 @@ strings, and fragments are rejected.
 
 `PLATFORM_API_KEY` must remain server-only: do not use a `NEXT_PUBLIC_` name,
 embed it in client code, log it, or return it in an API response. Missing
-Core URL or API key configuration returns HTTP 503 without exposing the
-missing value. Requests with a missing or unapproved `Origin` return HTTP 403,
-including in production.
+Core URL or API key configuration returns HTTP 503 with a stable `code`
+(`MISSING_PLATFORM_API_KEY`, `MISSING_CORE_API_URL`, …). Production keeps a
+generic French `message`; development also returns actionable `detail`.
+Requests with a missing or unapproved `Origin` return HTTP 403
+(`ORIGIN_NOT_ALLOWED`), including in production.
 
 ## Checks
 
