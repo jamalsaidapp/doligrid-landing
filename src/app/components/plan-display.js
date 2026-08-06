@@ -1,6 +1,7 @@
 /**
  * Morocco landing plan display helpers (CONNECT_SAAS_APP.md).
  * Prefer Manager `localPrice*` (MAD / DH); card `priceCents` is gateway-only.
+ * When Core is up, render Manager plans as-is (names, features, sortOrder).
  */
 
 /**
@@ -28,9 +29,11 @@
  *   localPriceCents?: number,
  *   localPriceNum?: number,
  *   localCurrency?: string,
+ *   sortOrder?: number,
  *   features?: unknown,
  *   limits?: Record<string, number>,
  *   tier?: string | null,
+ *   customProperties?: Record<string, unknown> | null,
  * }} ManagerPublicPlan
  */
 
@@ -124,6 +127,12 @@ export function featureItems(features) {
   return [];
 }
 
+function formatCountLabel(count, singular, plural) {
+  if (count < 0) return `${plural} : ∞`;
+  const noun = count === 1 ? singular : plural;
+  return `${count} ${noun}`;
+}
+
 /**
  * Prefer human marketing bullets; otherwise derive short lines from limits.
  * @param {ManagerPublicPlan} plan
@@ -142,7 +151,19 @@ export function resolvePlanFeatures(plan, fallback = []) {
     const suppliers = limits.suppliers_limit;
     if (typeof users === "number") {
       fromLimits.push({
-        text: users < 0 ? "Utilisateurs max : ∞" : `Utilisateurs max : ${users}`,
+        text: formatCountLabel(users, "Utilisateur", "Utilisateurs"),
+        included: true,
+      });
+    }
+    if (typeof clients === "number") {
+      fromLimits.push({
+        text: formatCountLabel(clients, "Client", "Clients"),
+        included: true,
+      });
+    }
+    if (typeof suppliers === "number") {
+      fromLimits.push({
+        text: formatCountLabel(suppliers, "Fournisseur", "Fournisseurs"),
         included: true,
       });
     }
@@ -151,22 +172,7 @@ export function resolvePlanFeatures(plan, fallback = []) {
         storage >= 1024
           ? `${Math.round((storage / 1024) * 10) / 10} Go`
           : `${storage} Mo`;
-      fromLimits.push({ text: `Stockage max : ${go}`, included: true });
-    }
-    if (typeof clients === "number") {
-      fromLimits.push({
-        text: clients < 0 ? "Clients max : ∞" : `Clients max : ${clients}`,
-        included: true,
-      });
-    }
-    if (typeof suppliers === "number") {
-      fromLimits.push({
-        text:
-          suppliers < 0
-            ? "Fournisseurs max : ∞"
-            : `Fournisseurs max : ${suppliers}`,
-        included: true,
-      });
+      fromLimits.push({ text: `${go} Stockage`, included: true });
     }
     if (fromLimits.length) return fromLimits;
   }
@@ -216,4 +222,54 @@ export function preferredRemotePlans(remote) {
     (p) => (p.interval || "MONTH").toUpperCase() === "MONTH",
   );
   return monthly.length ? monthly : remote;
+}
+
+/** Stable Admin drag order (sortOrder), then local MAD price. */
+export function sortRemotePlans(remote) {
+  return [...remote].sort((a, b) => {
+    const orderA = Number(a.sortOrder ?? 0);
+    const orderB = Number(b.sortOrder ?? 0);
+    if (orderA !== orderB) return orderA - orderB;
+    return (
+      Number(a.localPriceCents ?? a.priceCents ?? 0) -
+      Number(b.localPriceCents ?? b.priceCents ?? 0)
+    );
+  });
+}
+
+/**
+ * Pick one “popular” card: customProperties.popular, else Entreprise tier/name, else mid index.
+ * @param {ManagerPublicPlan[]} remote
+ * @returns {number}
+ */
+export function resolvePopularIndex(remote) {
+  if (!remote.length) return -1;
+  const flagged = remote.findIndex((p) => {
+    const props = p.customProperties;
+    return !!(props && typeof props === "object" && props.popular);
+  });
+  if (flagged >= 0) return flagged;
+
+  const entreprise = remote.findIndex((p) => {
+    const keys = [p.tier, p.slug, p.name, p.title]
+      .filter((v) => typeof v === "string")
+      .map((v) => normalizePlanKey(/** @type {string} */ (v)));
+    return keys.some((k) => k === "entreprise");
+  });
+  if (entreprise >= 0) return entreprise;
+
+  return Math.min(2, remote.length - 1);
+}
+
+/**
+ * Map Manager public plans → landing cards. Manager is the source of truth.
+ * @param {ManagerPublicPlan[]} remoteAll
+ * @returns {CheckoutPlan[]}
+ */
+export function mapManagerPlansToCheckout(remoteAll) {
+  const remote = sortRemotePlans(preferredRemotePlans(remoteAll));
+  const popularIndex = resolvePopularIndex(remote);
+  return remote.map((plan, index) =>
+    toCheckoutPlan(plan, { popular: index === popularIndex }),
+  );
 }
