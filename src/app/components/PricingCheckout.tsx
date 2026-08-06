@@ -17,7 +17,14 @@ export type CheckoutPlan = {
   id: string;
   name: string;
   slug?: string;
+  /** Manager customProperties.tier — used to pair monthly/yearly packages. */
+  tier?: string;
+  /** Formatted MAD/DH amount for Morocco display (e.g. "1 200"). */
   priceLabel: string;
+  /** Currency suffix shown next to the amount (default Dh). */
+  currencyLabel?: string;
+  /** Billing period label (mois / an / une fois). */
+  periodLabel?: string;
   features: PlanFeatureBullet[];
   popular?: boolean;
 };
@@ -38,11 +45,17 @@ type Props = {
   plans: CheckoutPlan[];
   /** False when Manager has no active checkout plans. */
   checkoutEnabled: boolean;
+  /** Wire transfer is Morocco-only (server geo / WIRE_FORCE_COUNTRY). */
+  wireEnabled?: boolean;
 };
 
 type Step = "method" | "details";
 
-export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
+export default function PricingCheckout({
+  plans,
+  checkoutEnabled,
+  wireEnabled = false,
+}: Props) {
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
   const [step, setStep] = useState<Step>("method");
   const [paymentMethod, setPaymentMethod] = useState<"card" | "wire" | null>(
@@ -127,11 +140,17 @@ export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
       return;
     }
     setActivePlanId(planId);
-    setStep("method");
-    setPaymentMethod(null);
     setError("");
     setSuccess("");
     setProof(null);
+    // Outside Morocco, skip method choice and go straight to card checkout.
+    if (!wireEnabled) {
+      setPaymentMethod("card");
+      setStep("details");
+      return;
+    }
+    setStep("method");
+    setPaymentMethod(null);
   }
 
   async function loadBanks() {
@@ -165,6 +184,10 @@ export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
   }
 
   function chooseMethod(method: "card" | "wire") {
+    if (method === "wire" && !wireEnabled) {
+      setError("Le virement bancaire n’est disponible qu’au Maroc.");
+      return;
+    }
     setPaymentMethod(method);
     setStep("details");
     setError("");
@@ -260,7 +283,7 @@ export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
 
   async function onWireSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!activePlan || !checkoutEnabled || !proof || busy) return;
+    if (!activePlan || !checkoutEnabled || !wireEnabled || !proof || busy) return;
     setBusy(true);
     setError("");
     setSuccess("");
@@ -344,7 +367,9 @@ export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
             <h3>{plan.name}</h3>
             <p className="price">
               <strong>{plan.priceLabel}</strong>
-              <span>Dh / mois</span>
+              <span>
+                {plan.currencyLabel || "Dh"} / {plan.periodLabel || "mois"}
+              </span>
             </p>
             <div className="pricing-divider" />
             <ul>
@@ -396,7 +421,8 @@ export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
                 <p className="plan-label">Paiement</p>
                 <h3 id="checkout-modal-title">{activePlan.name}</h3>
                 <p className="checkout-modal-price">
-                  {activePlan.priceLabel} Dh / mois
+                  {activePlan.priceLabel} {activePlan.currencyLabel || "Dh"} /{" "}
+                  {activePlan.periodLabel || "mois"}
                 </p>
               </div>
               <button
@@ -431,20 +457,22 @@ export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
                   </span>
                   <i className="bi bi-arrow-right" aria-hidden="true" />
                 </button>
-                <button
-                  type="button"
-                  className="payment-method-card"
-                  onClick={() => chooseMethod("wire")}
-                >
-                  <span className="payment-method-icon">
-                    <i className="bi bi-bank" aria-hidden="true" />
-                  </span>
-                  <span>
-                    <strong>Virement bancaire</strong>
-                    <small>Coordonnées + justificatif</small>
-                  </span>
-                  <i className="bi bi-arrow-right" aria-hidden="true" />
-                </button>
+                {wireEnabled ? (
+                  <button
+                    type="button"
+                    className="payment-method-card"
+                    onClick={() => chooseMethod("wire")}
+                  >
+                    <span className="payment-method-icon">
+                      <i className="bi bi-bank" aria-hidden="true" />
+                    </span>
+                    <span>
+                      <strong>Virement bancaire</strong>
+                      <small>Coordonnées + justificatif</small>
+                    </span>
+                    <i className="bi bi-arrow-right" aria-hidden="true" />
+                  </button>
+                ) : null}
                 {!paddleConfigured ? (
                   <p className="form-status form-status-error" role="status">
                     Le paiement par carte nécessite NEXT_PUBLIC_PADDLE_CLIENT_TOKEN.
@@ -453,21 +481,23 @@ export default function PricingCheckout({ plans, checkoutEnabled }: Props) {
               </div>
             ) : (
               <>
-                <button
-                  type="button"
-                  className="checkout-back"
-                  onClick={() => {
-                    if (!busy) {
-                      setStep("method");
-                      setError("");
-                      setSuccess("");
-                    }
-                  }}
-                  disabled={busy}
-                >
-                  <i className="bi bi-arrow-left" aria-hidden="true" />
-                  Changer de mode de paiement
-                </button>
+                {wireEnabled ? (
+                  <button
+                    type="button"
+                    className="checkout-back"
+                    onClick={() => {
+                      if (!busy) {
+                        setStep("method");
+                        setError("");
+                        setSuccess("");
+                      }
+                    }}
+                    disabled={busy}
+                  >
+                    <i className="bi bi-arrow-left" aria-hidden="true" />
+                    Changer de mode de paiement
+                  </button>
+                ) : null}
 
                 {paymentMethod === "wire" ? (
                   <div className="wire-bank-section" aria-live="polite">

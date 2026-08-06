@@ -91,9 +91,19 @@ Clicking **Acheter** opens a modal to choose:
    `POST /billing/checkout-intents/:id/reconcile` to create the tenant,
    activate the subscription, and start instance provisioning. Paddle webhooks
    remain the primary async path; reconcile is the idempotent safety net.
-2. **Virement bancaire** — bank details come from `GET /api/banks`. Submitting
-   proof uses `POST /api/wire` (CheckoutIntent + proof upload). Tenant access
-   is activated only after an administrator approves the payment in Manager.
+2. **Virement bancaire** (Morocco only) — shown when the request country is
+   `MA` (from CDN geo headers, or `WIRE_FORCE_COUNTRY` in local/dev). Bank
+   details come from `GET /api/banks`. Submitting proof uses `POST /api/wire`
+   (CheckoutIntent + proof upload). Tenant access is activated only after an
+   administrator approves the payment in Manager. Outside Morocco, the modal
+   skips straight to card checkout; `/api/banks` and `/api/wire` return 403
+   (`WIRE_NOT_AVAILABLE_IN_REGION`).
+
+Pricing cards sync from Manager `GET /products/:slug/landing`. Morocco display
+uses **`localPriceCents` / DH** (not card `priceCents`). Feature bullets come
+from Manager `features` (marketing list), with a limits-derived fallback.
+Buy uses the Manager plan `id`. Local hard-coded prices are offline fallback
+only — Buy stays disabled when Core is down.
 
 Required browser env for card checkout:
 
@@ -125,6 +135,8 @@ NEXT_PUBLIC_PADDLE_CLIENT_TOKEN=<paddle-client-side-token>
 NEXT_PUBLIC_PADDLE_ENV=production
 # Optional exact, comma-separated aliases or preview origins:
 ALLOWED_LANDING_ORIGINS=
+# Optional: force wire availability in local/dev (no CDN geo headers):
+# WIRE_FORCE_COUNTRY=MA
 ```
 
 `LANDING_PUBLIC_URL` and every `ALLOWED_LANDING_ORIGINS` entry are normalized
