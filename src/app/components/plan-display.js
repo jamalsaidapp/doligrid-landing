@@ -37,19 +37,38 @@
  * }} ManagerPublicPlan
  */
 
-/** Format an integer currency amount with French grouping spaces. */
+/** Format a currency amount with French grouping spaces (drop trailing .00). */
 export function formatAmountLabel(amount) {
-  const whole = Math.round(Number(amount) || 0);
-  return String(whole).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  const value = Number(amount) || 0;
+  const rounded = Math.round(value * 100) / 100;
+  const whole = Number.isInteger(rounded) ? rounded : rounded;
+  const text = Number.isInteger(whole)
+    ? String(whole)
+    : whole.toFixed(2).replace(".", ",");
+  const [intPart, frac] = text.split(",");
+  const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  return frac ? `${grouped},${frac}` : grouped;
 }
 
-/**
- * Morocco landing display: prefer Manager local MAD price.
- * Legacy fallback: card price only when it was already stored as MAD.
- * @param {ManagerPublicPlan} plan
- * @returns {{ amount: number, currencyLabel: string } | null}
- */
-export function resolveDisplayPrice(plan) {
+/** Short landing label for ISO currency codes. */
+export function currencyLabelForCode(code) {
+  switch ((code || "").trim().toUpperCase()) {
+    case "MAD":
+      return "Dh";
+    case "USD":
+      return "$";
+    case "EUR":
+      return "€";
+    case "GBP":
+      return "£";
+    default: {
+      const upper = (code || "").trim().toUpperCase();
+      return upper || "Dh";
+    }
+  }
+}
+
+function resolveLocalAmount(plan) {
   const localCents = Number(plan.localPriceCents ?? 0);
   if (Number.isFinite(localCents) && localCents > 0) {
     return { amount: localCents / 100, currencyLabel: "Dh" };
@@ -61,17 +80,57 @@ export function resolveDisplayPrice(plan) {
   }
 
   const cardCurrency = (plan.currency || "").trim().toUpperCase();
+  if (cardCurrency !== "MAD") return null;
+
   const cardCents = Number(plan.priceCents ?? 0);
-  if (cardCurrency === "MAD" && Number.isFinite(cardCents) && cardCents > 0) {
+  if (Number.isFinite(cardCents) && cardCents > 0) {
     return { amount: cardCents / 100, currencyLabel: "Dh" };
   }
 
   const cardNum = Number(plan.priceNum ?? 0);
-  if (cardCurrency === "MAD" && Number.isFinite(cardNum) && cardNum > 0) {
+  if (Number.isFinite(cardNum) && cardNum > 0) {
     return { amount: cardNum, currencyLabel: "Dh" };
   }
 
   return null;
+}
+
+function resolveCardAmount(plan) {
+  const cardCurrency = (plan.currency || "").trim().toUpperCase() || "USD";
+  const cardCents = Number(plan.priceCents ?? 0);
+  if (Number.isFinite(cardCents) && cardCents > 0) {
+    return {
+      amount: cardCents / 100,
+      currencyLabel: currencyLabelForCode(cardCurrency),
+    };
+  }
+
+  const cardNum = Number(plan.priceNum ?? 0);
+  if (Number.isFinite(cardNum) && cardNum > 0) {
+    return {
+      amount: cardNum,
+      currencyLabel: currencyLabelForCode(cardCurrency),
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Morocco (preferLocal): DH from Manager `localPrice*`.
+ * Elsewhere: card gateway price (USD / EUR / …).
+ * @param {ManagerPublicPlan} plan
+ * @param {{ preferLocal?: boolean }} [options]
+ * @returns {{ amount: number, currencyLabel: string } | null}
+ */
+export function resolveDisplayPrice(plan, options = {}) {
+  const preferLocal = options.preferLocal !== false;
+
+  if (preferLocal) {
+    return resolveLocalAmount(plan) || resolveCardAmount(plan);
+  }
+
+  return resolveCardAmount(plan) || resolveLocalAmount(plan);
 }
 
 /** French period label from Manager plan interval. */
@@ -190,16 +249,19 @@ export function normalizePlanKey(value) {
 
 /**
  * @param {ManagerPublicPlan} remote
- * @param {{ fallback?: CheckoutPlan, popular?: boolean }} [options]
+ * @param {{ fallback?: CheckoutPlan, popular?: boolean, preferLocal?: boolean }} [options]
  * @returns {CheckoutPlan}
  */
 export function toCheckoutPlan(remote, options = {}) {
-  const { fallback, popular } = options;
-  const display = resolveDisplayPrice(remote);
+  const { fallback, popular, preferLocal = true } = options;
+  const display = resolveDisplayPrice(remote, { preferLocal });
   const priceLabel = display
     ? formatAmountLabel(display.amount)
     : fallback?.priceLabel || "—";
-  const currencyLabel = display?.currencyLabel || fallback?.currencyLabel || "Dh";
+  const currencyLabel =
+    display?.currencyLabel ||
+    fallback?.currencyLabel ||
+    (preferLocal ? "Dh" : "$");
   const periodLabel = resolvePeriodLabel(remote.interval);
   const features = resolvePlanFeatures(remote, fallback?.features || []);
 
@@ -264,12 +326,17 @@ export function resolvePopularIndex(remote) {
 /**
  * Map Manager public plans → landing cards. Manager is the source of truth.
  * @param {ManagerPublicPlan[]} remoteAll
+ * @param {{ preferLocal?: boolean }} [options]
  * @returns {CheckoutPlan[]}
  */
-export function mapManagerPlansToCheckout(remoteAll) {
+export function mapManagerPlansToCheckout(remoteAll, options = {}) {
+  const preferLocal = options.preferLocal !== false;
   const remote = sortRemotePlans(preferredRemotePlans(remoteAll));
   const popularIndex = resolvePopularIndex(remote);
   return remote.map((plan, index) =>
-    toCheckoutPlan(plan, { popular: index === popularIndex }),
+    toCheckoutPlan(plan, {
+      popular: index === popularIndex,
+      preferLocal,
+    }),
   );
 }

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  currencyLabelForCode,
   formatAmountLabel,
   mapManagerPlansToCheckout,
   preferredRemotePlans,
@@ -10,36 +11,49 @@ import {
   toCheckoutPlan,
 } from "../src/app/components/plan-display.js";
 
-test("prefers local MAD price for Morocco display", () => {
-  const display = resolveDisplayPrice({
-    id: "1",
-    priceCents: 1200,
-    currency: "EUR",
-    localPriceCents: 12000,
-    localCurrency: "MAD",
-  });
+const SAMPLE = {
+  id: "1",
+  priceCents: 1200,
+  currency: "USD",
+  localPriceCents: 12000,
+  localCurrency: "MAD",
+};
+
+test("Morocco display prefers local MAD price", () => {
+  const display = resolveDisplayPrice(SAMPLE, { preferLocal: true });
   assert.deepEqual(display, { amount: 120, currencyLabel: "Dh" });
   assert.equal(formatAmountLabel(display.amount), "120");
 });
 
-test("falls back to card price only when currency is MAD", () => {
+test("non-Morocco display uses card USD/EUR price", () => {
+  assert.deepEqual(resolveDisplayPrice(SAMPLE, { preferLocal: false }), {
+    amount: 12,
+    currencyLabel: "$",
+  });
   assert.deepEqual(
-    resolveDisplayPrice({
-      id: "1",
-      priceCents: 24000,
-      currency: "MAD",
-      localPriceCents: 0,
-    }),
-    { amount: 240, currencyLabel: "Dh" },
+    resolveDisplayPrice(
+      { ...SAMPLE, currency: "EUR", priceCents: 4900 },
+      { preferLocal: false },
+    ),
+    { amount: 49, currencyLabel: "€" },
   );
-  assert.equal(
-    resolveDisplayPrice({
-      id: "1",
-      priceCents: 2400,
-      currency: "EUR",
-      localPriceCents: 0,
-    }),
-    null,
+  assert.equal(currencyLabelForCode("EUR"), "€");
+});
+
+test("falls back across price sides when the preferred side is missing", () => {
+  assert.deepEqual(
+    resolveDisplayPrice(
+      { id: "1", priceCents: 2400, currency: "USD", localPriceCents: 0 },
+      { preferLocal: true },
+    ),
+    { amount: 24, currencyLabel: "$" },
+  );
+  assert.deepEqual(
+    resolveDisplayPrice(
+      { id: "1", priceCents: 0, currency: "USD", localPriceCents: 35000 },
+      { preferLocal: false },
+    ),
+    { amount: 350, currencyLabel: "Dh" },
   );
 });
 
@@ -60,7 +74,7 @@ test("maps Manager features and interval into checkout cards", () => {
         { text: "Support premium", included: false },
       ],
     },
-    { popular: true },
+    { popular: true, preferLocal: true },
   );
 
   assert.equal(plan.id, "plan-uuid");
@@ -106,8 +120,8 @@ test("prefers monthly plans when yearly twins exist", () => {
   );
 });
 
-test("maps Manager catalog without remapping stale local names", () => {
-  const plans = mapManagerPlansToCheckout([
+test("maps Manager catalog with regional currency", () => {
+  const catalog = [
     {
       id: "id-ae",
       name: "Auto-Entrepreneur",
@@ -148,15 +162,36 @@ test("maps Manager catalog without remapping stale local names", () => {
       localPriceCents: 50000,
       features: [{ text: "Utilisateurs illimités", included: true }],
     },
-  ]);
+  ];
 
+  const morocco = mapManagerPlansToCheckout(catalog, { preferLocal: true });
   assert.deepEqual(
-    plans.map((p) => ({ id: p.id, name: p.name, price: p.priceLabel, popular: !!p.popular })),
+    morocco.map((p) => ({
+      name: p.name,
+      price: p.priceLabel,
+      currency: p.currencyLabel,
+      popular: !!p.popular,
+    })),
     [
-      { id: "id-ae", name: "Auto-Entrepreneur", price: "120", popular: false },
-      { id: "id-pro", name: "Pro", price: "350", popular: false },
-      { id: "id-ent", name: "Entreprise", price: "240", popular: true },
-      { id: "id-nl", name: "No Limit", price: "500", popular: false },
+      { name: "Auto-Entrepreneur", price: "120", currency: "Dh", popular: false },
+      { name: "Pro", price: "350", currency: "Dh", popular: false },
+      { name: "Entreprise", price: "240", currency: "Dh", popular: true },
+      { name: "No Limit", price: "500", currency: "Dh", popular: false },
+    ],
+  );
+
+  const abroad = mapManagerPlansToCheckout(catalog, { preferLocal: false });
+  assert.deepEqual(
+    abroad.map((p) => ({
+      name: p.name,
+      price: p.priceLabel,
+      currency: p.currencyLabel,
+    })),
+    [
+      { name: "Auto-Entrepreneur", price: "12", currency: "$" },
+      { name: "Pro", price: "24", currency: "$" },
+      { name: "Entreprise", price: "60", currency: "$" },
+      { name: "No Limit", price: "100", currency: "$" },
     ],
   );
 });

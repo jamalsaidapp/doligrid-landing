@@ -99,11 +99,11 @@ Clicking **Acheter** opens a modal to choose:
    skips straight to card checkout; `/api/banks` and `/api/wire` return 403
    (`WIRE_NOT_AVAILABLE_IN_REGION`).
 
-Pricing cards sync from Manager `GET /products/:slug/landing`. Morocco display
-uses **`localPriceCents` / DH** (not card `priceCents`). Feature bullets come
-from Manager `features` (marketing list), with a limits-derived fallback.
-Buy uses the Manager plan `id`. Local hard-coded prices are offline fallback
-only — Buy stays disabled when Core is down.
+Pricing cards sync from Manager `GET /products/:slug/landing`. Morocco (`MA`)
+shows **`localPriceCents` / DH**; other countries show card **`priceCents`** in
+USD/EUR. Feature bullets come from Manager `features` (marketing list), with a
+limits-derived fallback. Buy uses the Manager plan `id`. Local hard-coded
+prices are offline fallback only — Buy stays disabled when Core is down.
 
 Required browser env for card checkout:
 
