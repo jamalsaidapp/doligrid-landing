@@ -6,9 +6,7 @@ import PricingCheckout, {
   type CheckoutPlan,
 } from "./components/PricingCheckout";
 import {
-  normalizePlanKey,
-  preferredRemotePlans,
-  toCheckoutPlan,
+  mapManagerPlansToCheckout,
 } from "./components/plan-display.js";
 import { getCoreLandingUrl } from "./api/leads/origin-policy.js";
 import { isWireAllowedForRequest } from "./api/leads/wire-region.js";
@@ -52,6 +50,7 @@ const capabilities = [
   },
 ];
 
+/** Offline-only copy when Manager is unreachable. Buy stays disabled. */
 const fallbackPlans: CheckoutPlan[] = [
   {
     id: "fallback-auto-entrepreneur",
@@ -62,31 +61,29 @@ const fallbackPlans: CheckoutPlan[] = [
     currencyLabel: "Dh",
     periodLabel: "mois",
     features: [
-      "Utilisateurs max : 1",
-      "Stockage max : 1 Go",
-      "Clients max : 15",
-      "Fournisseurs max : 5",
+      "1 Utilisateur",
+      "10 Clients",
+      "20 Fournisseurs",
+      "1 Go Stockage",
+      "Backup Journalier",
       "Support 24/7",
-      "Formation",
-      "Sauvegarde",
     ].map((text) => ({ text, included: true })),
   },
   {
-    id: "fallback-agence",
-    name: "Agence",
-    slug: "agence",
-    tier: "agence",
-    priceLabel: "240",
+    id: "fallback-pro",
+    name: "Pro",
+    slug: "pro",
+    tier: "pro",
+    priceLabel: "350",
     currencyLabel: "Dh",
     periodLabel: "mois",
     features: [
-      "Utilisateurs max : 2",
-      "Stockage max : 2 Go",
-      "Clients max : 25",
-      "Fournisseurs max : 15",
+      "2 Utilisateurs",
+      "50 Clients",
+      "100 Fournisseurs",
+      "5 Go Stockage",
+      "Backup Journalier",
       "Support 24/7",
-      "Formation",
-      "Sauvegarde",
     ].map((text) => ({ text, included: true })),
   },
   {
@@ -94,36 +91,34 @@ const fallbackPlans: CheckoutPlan[] = [
     name: "Entreprise",
     slug: "entreprise",
     tier: "entreprise",
-    priceLabel: "600",
+    priceLabel: "240",
     currencyLabel: "Dh",
     periodLabel: "mois",
     popular: true,
     features: [
-      "Utilisateurs max : 5",
-      "Stockage max : 5 Go",
-      "Clients max : 150",
-      "Fournisseurs max : 100",
+      "5 Utilisateurs",
+      "500 Clients",
+      "1000 Fournisseurs",
+      "10 Go Stockage",
+      "Backup Journalier",
       "Support 24/7",
-      "Formation",
-      "Sauvegarde",
     ].map((text) => ({ text, included: true })),
   },
   {
-    id: "fallback-entreprise-plus",
-    name: "Entreprise+",
-    slug: "entreprise-plus",
-    tier: "entreprise-plus",
-    priceLabel: "1 200",
+    id: "fallback-no-limit",
+    name: "No Limit",
+    slug: "no-limit",
+    tier: "no-limit",
+    priceLabel: "500",
     currencyLabel: "Dh",
     periodLabel: "mois",
     features: [
-      "Utilisateurs max : ∞",
-      "Stockage max : 10 Go",
-      "Clients max : ∞",
-      "Fournisseurs max : ∞",
+      "Utilisateurs illimités",
+      "Clients illimités",
+      "Fournisseurs illimités",
+      "Stockage illimité",
+      "Backup Journalier",
       "Support 24/7",
-      "Formation",
-      "Sauvegarde",
     ].map((text) => ({ text, included: true })),
   },
 ];
@@ -154,57 +149,21 @@ async function loadCheckoutPlans(): Promise<{
         localPriceCents?: number;
         localPriceNum?: number;
         localCurrency?: string;
+        sortOrder?: number;
         features?: unknown;
         limits?: Record<string, number>;
         tier?: string | null;
+        customProperties?: Record<string, unknown> | null;
       }>;
     };
-    type RemotePlan = NonNullable<typeof data.plans>[number];
-    const remoteAll = Array.isArray(data.plans) ? data.plans : [];
-    const remote = preferredRemotePlans(remoteAll);
+    const remote = Array.isArray(data.plans) ? data.plans : [];
     if (!remote.length) {
       return { plans: fallbackPlans, checkoutEnabled: false };
     }
 
-    const byKey = new Map<string, RemotePlan>();
-    for (const plan of remote) {
-      for (const raw of [
-        plan.tier,
-        plan.slug,
-        plan.name,
-        plan.title,
-      ]) {
-        if (typeof raw === "string" && raw.trim()) {
-          byKey.set(normalizePlanKey(raw), plan);
-        }
-      }
-    }
-
-    const merged = fallbackPlans.map((fallback, index) => {
-      const match =
-        (fallback.tier && byKey.get(normalizePlanKey(fallback.tier))) ||
-        (fallback.slug && byKey.get(normalizePlanKey(fallback.slug))) ||
-        byKey.get(normalizePlanKey(fallback.name)) ||
-        remote[index];
-      if (!match?.id) return fallback;
-      return toCheckoutPlan(match, {
-        fallback,
-        popular: fallback.popular,
-      });
-    });
-
-    const allMatched = merged.every((p) => !p.id.startsWith("fallback-"));
-    if (allMatched) {
-      return { plans: merged, checkoutEnabled: true };
-    }
-
-    // Manager returned plans that don't align with marketing names — still enable checkout on remote IDs.
+    // Manager is the source of truth — do not remap through stale local names.
     return {
-      plans: remote.map((p: RemotePlan, index: number) =>
-        toCheckoutPlan(p, {
-          popular: index === Math.min(2, remote.length - 1),
-        }),
-      ),
+      plans: mapManagerPlansToCheckout(remote),
       checkoutEnabled: true,
     };
   } catch {
