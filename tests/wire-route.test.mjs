@@ -9,6 +9,7 @@ const ENV_KEYS = [
   "PLATFORM_API_KEY",
   "PORTAL_URL",
   "NEXT_PUBLIC_PORTAL_URL",
+  "WIRE_FORCE_COUNTRY",
 ];
 const originalEnv = Object.fromEntries(
   ENV_KEYS.map((key) => [key, process.env[key]]),
@@ -21,6 +22,7 @@ function configure() {
     ALLOWED_LANDING_ORIGINS: "",
     CORE_API_URL: "https://manager.example.com/api/v1",
     PLATFORM_API_KEY: "server-secret",
+    WIRE_FORCE_COUNTRY: "MA",
   });
 }
 
@@ -29,6 +31,7 @@ function wireRequest({
   type = "application/pdf",
   size = 8,
   tenantId,
+  country,
 } = {}) {
   const form = new FormData();
   form.set("planId", "plan-1");
@@ -37,9 +40,11 @@ function wireRequest({
   form.set("company", "Acme");
   form.set("proof", new Blob([new Uint8Array(size)], { type }), "proof.pdf");
   if (tenantId !== undefined) form.set("tenantId", tenantId);
+  const headers = { Origin: origin };
+  if (country) headers["x-vercel-ip-country"] = country;
   return new Request("https://doligrid.com/api/wire", {
     method: "POST",
-    headers: { Origin: origin },
+    headers,
     body: form,
   });
 }
@@ -67,6 +72,23 @@ test("rejects missing or foreign origins before forwarding", async () => {
 
   assert.equal(foreign.status, 403);
   assert.equal(missing.status, 403);
+  assert.equal(calls, 0);
+});
+
+test("rejects wire outside Morocco before forwarding", async () => {
+  configure();
+  delete process.env.WIRE_FORCE_COUNTRY;
+  let calls = 0;
+  global.fetch = async () => {
+    calls += 1;
+    return new Response();
+  };
+
+  const blocked = await POST(wireRequest({ country: "FR" }));
+  const data = await blocked.json();
+
+  assert.equal(blocked.status, 403);
+  assert.equal(data.code, "WIRE_NOT_AVAILABLE_IN_REGION");
   assert.equal(calls, 0);
 });
 
@@ -174,6 +196,7 @@ test("omits portal redirect when Core origin is 0.0.0.0", async () => {
     PLATFORM_API_KEY: "server-secret",
     PORTAL_URL: "",
     NEXT_PUBLIC_PORTAL_URL: "",
+    WIRE_FORCE_COUNTRY: "MA",
   });
   global.fetch = async (url) => {
     if (String(url).includes("/checkout-intents/wire")) {

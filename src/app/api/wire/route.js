@@ -11,6 +11,10 @@ import {
   serviceUnavailableBody,
   upstreamFailureBody,
 } from "../leads/origin-policy.js";
+import {
+  isWireAllowedForRequest,
+  wireRegionForbiddenBody,
+} from "../leads/wire-region.js";
 
 export const runtime = "nodejs";
 
@@ -155,6 +159,13 @@ export async function POST(request) {
       { status: 403 },
     );
   }
+
+  if (!isWireAllowedForRequest(request.headers)) {
+    return NextResponse.json(wireRegionForbiddenBody(request.headers), {
+      status: 403,
+    });
+  }
+
   const contentType = request.headers.get("content-type") || "";
   if (!contentType.toLowerCase().startsWith("multipart/form-data;")) {
     return safeError("Le formulaire de virement est invalide.", 415);

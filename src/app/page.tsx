@@ -1,10 +1,17 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import BrandLogo from "./components/BrandLogo";
 import Header from "./components/Header";
 import PricingCheckout, {
   type CheckoutPlan,
 } from "./components/PricingCheckout";
+import {
+  normalizePlanKey,
+  preferredRemotePlans,
+  toCheckoutPlan,
+} from "./components/plan-display.js";
 import { getCoreLandingUrl } from "./api/leads/origin-policy.js";
+import { isWireAllowedForRequest } from "./api/leads/wire-region.js";
 
 const capabilities = [
   {
@@ -49,7 +56,11 @@ const fallbackPlans: CheckoutPlan[] = [
   {
     id: "fallback-auto-entrepreneur",
     name: "Auto-Entrepreneur",
+    slug: "auto-entrepreneur",
+    tier: "auto-entrepreneur",
     priceLabel: "120",
+    currencyLabel: "Dh",
+    periodLabel: "mois",
     features: [
       "Utilisateurs max : 1",
       "Stockage max : 1 Go",
@@ -63,7 +74,11 @@ const fallbackPlans: CheckoutPlan[] = [
   {
     id: "fallback-agence",
     name: "Agence",
+    slug: "agence",
+    tier: "agence",
     priceLabel: "240",
+    currencyLabel: "Dh",
+    periodLabel: "mois",
     features: [
       "Utilisateurs max : 2",
       "Stockage max : 2 Go",
@@ -77,7 +92,11 @@ const fallbackPlans: CheckoutPlan[] = [
   {
     id: "fallback-entreprise",
     name: "Entreprise",
+    slug: "entreprise",
+    tier: "entreprise",
     priceLabel: "600",
+    currencyLabel: "Dh",
+    periodLabel: "mois",
     popular: true,
     features: [
       "Utilisateurs max : 5",
@@ -92,7 +111,11 @@ const fallbackPlans: CheckoutPlan[] = [
   {
     id: "fallback-entreprise-plus",
     name: "Entreprise+",
+    slug: "entreprise-plus",
+    tier: "entreprise-plus",
     priceLabel: "1 200",
+    currencyLabel: "Dh",
+    periodLabel: "mois",
     features: [
       "Utilisateurs max : ∞",
       "Stockage max : 10 Go",
@@ -104,53 +127,6 @@ const fallbackPlans: CheckoutPlan[] = [
     ].map((text) => ({ text, included: true })),
   },
 ];
-
-function normalizeKey(value: string) {
-  return value
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "");
-}
-
-function featureItems(
-  features: unknown,
-): Array<{ text: string; included: boolean }> {
-  if (Array.isArray(features)) {
-    const out: Array<{ text: string; included: boolean }> = [];
-    for (const f of features) {
-      if (typeof f === "string" && f.trim()) {
-        out.push({ text: f.trim(), included: true });
-        continue;
-      }
-      if (f && typeof f === "object" && typeof (f as { text?: string }).text === "string") {
-        const text = (f as { text: string }).text.trim();
-        if (!text) continue;
-        out.push({
-          text,
-          included: (f as { included?: boolean }).included !== false,
-        });
-      }
-    }
-    return out;
-  }
-  if (features && typeof features === "object") {
-    const obj = features as Record<string, unknown>;
-    // Merge both keys — empty marketingFeatures must not hide a legacy features list.
-    const merged = [
-      ...featureItems(obj.marketingFeatures),
-      ...featureItems(obj.features),
-    ];
-    const seen = new Set<string>();
-    return merged.filter((item) => {
-      const key = item.text.toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }
-  return [];
-}
 
 async function loadCheckoutPlans(): Promise<{
   plans: CheckoutPlan[];
@@ -168,61 +144,67 @@ async function loadCheckoutPlans(): Promise<{
     const data = (await res.json()) as {
       plans?: Array<{
         id: string;
-        name: string;
+        name?: string;
         slug?: string;
         title?: string;
+        interval?: string;
         priceCents?: number;
+        priceNum?: number;
+        currency?: string;
+        localPriceCents?: number;
+        localPriceNum?: number;
+        localCurrency?: string;
         features?: unknown;
+        limits?: Record<string, number>;
+        tier?: string | null;
       }>;
     };
-    const remote = Array.isArray(data.plans) ? data.plans : [];
+    type RemotePlan = NonNullable<typeof data.plans>[number];
+    const remoteAll = Array.isArray(data.plans) ? data.plans : [];
+    const remote = preferredRemotePlans(remoteAll);
     if (!remote.length) {
       return { plans: fallbackPlans, checkoutEnabled: false };
     }
 
-    const byKey = new Map(
-      remote.map((p) => [normalizeKey(p.slug || p.name || p.title || ""), p]),
-    );
+    const byKey = new Map<string, RemotePlan>();
+    for (const plan of remote) {
+      for (const raw of [
+        plan.tier,
+        plan.slug,
+        plan.name,
+        plan.title,
+      ]) {
+        if (typeof raw === "string" && raw.trim()) {
+          byKey.set(normalizePlanKey(raw), plan);
+        }
+      }
+    }
 
     const merged = fallbackPlans.map((fallback, index) => {
       const match =
-        byKey.get(normalizeKey(fallback.name)) ||
-        byKey.get(normalizeKey(fallback.slug || "")) ||
+        (fallback.tier && byKey.get(normalizePlanKey(fallback.tier))) ||
+        (fallback.slug && byKey.get(normalizePlanKey(fallback.slug))) ||
+        byKey.get(normalizePlanKey(fallback.name)) ||
         remote[index];
       if (!match?.id) return fallback;
-      const cents = Number(match.priceCents || 0);
-      const priceLabel =
-        cents > 0
-          ? String(Math.round(cents / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, " ")
-          : fallback.priceLabel;
-      const features = featureItems(match.features);
-      return {
-        id: match.id,
-        name: match.title || match.name || fallback.name,
-        slug: match.slug,
-        priceLabel,
+      return toCheckoutPlan(match, {
+        fallback,
         popular: fallback.popular,
-        features: features.length ? features : fallback.features,
-      } satisfies CheckoutPlan;
+      });
     });
 
     const allMatched = merged.every((p) => !p.id.startsWith("fallback-"));
     if (allMatched) {
       return { plans: merged, checkoutEnabled: true };
     }
+
     // Manager returned plans that don't align with marketing names — still enable checkout on remote IDs.
     return {
-      plans: remote.map((p, index) => ({
-        id: p.id,
-        name: p.title || p.name,
-        slug: p.slug,
-        priceLabel: String(Math.round(Number(p.priceCents || 0) / 100)).replace(
-          /\B(?=(\d{3})+(?!\d))/g,
-          " ",
-        ),
-        popular: index === Math.min(2, remote.length - 1),
-        features: featureItems(p.features),
-      })),
+      plans: remote.map((p: RemotePlan, index: number) =>
+        toCheckoutPlan(p, {
+          popular: index === Math.min(2, remote.length - 1),
+        }),
+      ),
       checkoutEnabled: true,
     };
   } catch {
@@ -273,6 +255,7 @@ function SectionHeading({
 
 export default async function Home() {
   const { plans, checkoutEnabled } = await loadCheckoutPlans();
+  const wireEnabled = isWireAllowedForRequest(await headers());
 
   return (
     <>
@@ -439,7 +422,11 @@ export default async function Home() {
               title="Des offres claires à chaque étape"
               description="Commencez avec un essai gratuit. Évoluez quand votre équipe est prête — sans surprise."
             />
-            <PricingCheckout plans={plans} checkoutEnabled={checkoutEnabled} />
+            <PricingCheckout
+              plans={plans}
+              checkoutEnabled={checkoutEnabled}
+              wireEnabled={wireEnabled}
+            />
           </div>
         </section>
 

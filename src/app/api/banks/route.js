@@ -6,6 +6,10 @@ import {
   serviceUnavailableBody,
   upstreamFailureBody,
 } from "../leads/origin-policy.js";
+import {
+  isWireAllowedForRequest,
+  wireRegionForbiddenBody,
+} from "../leads/wire-region.js";
 
 export const runtime = "nodejs";
 
@@ -48,7 +52,13 @@ function sanitizeBank(value) {
 }
 
 /** Public bank details → same-origin BFF → authenticated Manager Core. */
-export async function GET() {
+export async function GET(request) {
+  if (!isWireAllowedForRequest(request.headers)) {
+    return NextResponse.json(wireRegionForbiddenBody(request.headers), {
+      status: 403,
+    });
+  }
+
   let apiKey;
   let banksUrl;
   try {
