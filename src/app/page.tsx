@@ -50,16 +50,19 @@ const capabilities = [
   },
 ];
 
-/** Offline-only copy when Manager is unreachable. Buy stays disabled. */
-const fallbackPlans: CheckoutPlan[] = [
+/** Offline-only catalog when Manager is unreachable. Buy stays disabled. */
+const FALLBACK_REMOTE = [
   {
     id: "fallback-auto-entrepreneur",
     name: "Auto-Entrepreneur",
     slug: "auto-entrepreneur",
     tier: "auto-entrepreneur",
-    priceLabel: "120",
-    currencyLabel: "Dh",
-    periodLabel: "mois",
+    interval: "MONTH",
+    priceCents: 1200,
+    currency: "USD",
+    localPriceCents: 12000,
+    localCurrency: "MAD",
+    sortOrder: 0,
     features: [
       "1 Utilisateur",
       "10 Clients",
@@ -74,9 +77,12 @@ const fallbackPlans: CheckoutPlan[] = [
     name: "Pro",
     slug: "pro",
     tier: "pro",
-    priceLabel: "350",
-    currencyLabel: "Dh",
-    periodLabel: "mois",
+    interval: "MONTH",
+    priceCents: 2400,
+    currency: "USD",
+    localPriceCents: 35000,
+    localCurrency: "MAD",
+    sortOrder: 1,
     features: [
       "2 Utilisateurs",
       "50 Clients",
@@ -91,10 +97,12 @@ const fallbackPlans: CheckoutPlan[] = [
     name: "Entreprise",
     slug: "entreprise",
     tier: "entreprise",
-    priceLabel: "240",
-    currencyLabel: "Dh",
-    periodLabel: "mois",
-    popular: true,
+    interval: "MONTH",
+    priceCents: 6000,
+    currency: "USD",
+    localPriceCents: 24000,
+    localCurrency: "MAD",
+    sortOrder: 2,
     features: [
       "5 Utilisateurs",
       "500 Clients",
@@ -109,9 +117,12 @@ const fallbackPlans: CheckoutPlan[] = [
     name: "No Limit",
     slug: "no-limit",
     tier: "no-limit",
-    priceLabel: "500",
-    currencyLabel: "Dh",
-    periodLabel: "mois",
+    interval: "MONTH",
+    priceCents: 10000,
+    currency: "USD",
+    localPriceCents: 50000,
+    localCurrency: "MAD",
+    sortOrder: 3,
     features: [
       "Utilisateurs illimités",
       "Clients illimités",
@@ -123,10 +134,14 @@ const fallbackPlans: CheckoutPlan[] = [
   },
 ];
 
-async function loadCheckoutPlans(): Promise<{
+async function loadCheckoutPlans(preferLocalPrice: boolean): Promise<{
   plans: CheckoutPlan[];
   checkoutEnabled: boolean;
 }> {
+  const fallbackPlans = mapManagerPlansToCheckout(FALLBACK_REMOTE, {
+    preferLocal: preferLocalPrice,
+  });
+
   try {
     const landingUrl = getCoreLandingUrl(
       process.env.CORE_API_URL,
@@ -163,13 +178,16 @@ async function loadCheckoutPlans(): Promise<{
 
     // Manager is the source of truth — do not remap through stale local names.
     return {
-      plans: mapManagerPlansToCheckout(remote),
+      plans: mapManagerPlansToCheckout(remote, {
+        preferLocal: preferLocalPrice,
+      }),
       checkoutEnabled: true,
     };
   } catch {
     return { plans: fallbackPlans, checkoutEnabled: false };
   }
 }
+
 
 const trustItems = [
   {
@@ -213,8 +231,11 @@ function SectionHeading({
 }
 
 export default async function Home() {
-  const { plans, checkoutEnabled } = await loadCheckoutPlans();
-  const wireEnabled = isWireAllowedForRequest(await headers());
+  const requestHeaders = await headers();
+  // Morocco → DH + wire; elsewhere → card currency (USD/EUR) and card-only checkout.
+  const preferLocalPrice = isWireAllowedForRequest(requestHeaders);
+  const wireEnabled = preferLocalPrice;
+  const { plans, checkoutEnabled } = await loadCheckoutPlans(preferLocalPrice);
 
   return (
     <>
