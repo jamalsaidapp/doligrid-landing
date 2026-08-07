@@ -1339,6 +1339,32 @@ h3,
   margin-top: 22px;
 }
 
+.wire-bank-select {
+  display: grid;
+  gap: 7px;
+  color: var(--ink);
+  font-family: var(--font-heading), Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.wire-bank-select select {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 13px;
+  border: 1px solid #cbd9d4;
+  border-radius: 9px;
+  color: var(--ink);
+  background: var(--white);
+  font: 400 15px/1.4 var(--font-body), Arial, sans-serif;
+}
+
+.wire-bank-select select:focus {
+  outline: none;
+  border-color: var(--green-700);
+  box-shadow: 0 0 0 4px rgba(26, 208, 121, 0.14);
+}
+
 .wire-bank-card {
   padding: 20px;
   border: 1px solid #cbded6;

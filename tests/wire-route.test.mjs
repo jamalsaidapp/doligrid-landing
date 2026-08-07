@@ -31,6 +31,8 @@ function wireRequest({
   type = "application/pdf",
   size = 8,
   tenantId,
+  bankAccountId = "bank-1",
+  omitBankAccountId = false,
   country,
 } = {}) {
   const form = new FormData();
@@ -38,6 +40,7 @@ function wireRequest({
   form.set("email", "buyer@example.com");
   form.set("name", "Buyer");
   form.set("company", "Acme");
+  if (!omitBankAccountId) form.set("bankAccountId", bankAccountId);
   form.set("proof", new Blob([new Uint8Array(size)], { type }), "proof.pdf");
   if (tenantId !== undefined) form.set("tenantId", tenantId);
   const headers = { Origin: origin };
@@ -110,6 +113,22 @@ test("rejects tenantId and invalid proof types without forwarding", async () => 
   assert.equal(calls, 0);
 });
 
+test("rejects wire submission without a selected bank", async () => {
+  configure();
+  let calls = 0;
+  global.fetch = async () => {
+    calls += 1;
+    return new Response();
+  };
+
+  const response = await POST(wireRequest({ omitBankAccountId: true }));
+  const data = await response.json();
+
+  assert.equal(response.status, 400);
+  assert.match(data.message, /banque/i);
+  assert.equal(calls, 0);
+});
+
 test("creates a wire intent then submits proof without any tenantId", async () => {
   configure();
   const calls = [];
@@ -153,9 +172,11 @@ test("creates a wire intent then submits proof without any tenantId", async () =
   assert.equal(calls[1].options.headers["X-API-Key"], "server-secret");
   assert.equal(intentBody.planId, "plan-1");
   assert.equal(intentBody.source, "LANDING");
+  assert.equal(intentBody.bankAccountId, "bank-1");
   assert.equal("tenantId" in intentBody, false);
   assert.equal(proofForm.get("checkoutIntentId"), "intent-1");
   assert.equal(proofForm.get("planId"), "plan-1");
+  assert.equal(proofForm.get("bankAccountId"), "bank-1");
   assert.equal(proofForm.has("tenantId"), false);
 });
 

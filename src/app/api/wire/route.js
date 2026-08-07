@@ -27,7 +27,13 @@ const ALLOWED_PROOF_TYPES = new Set([
   "image/webp",
   "application/pdf",
 ]);
-const FIELD_LIMITS = { planId: 200, email: 320, name: 200, company: 200 };
+const FIELD_LIMITS = {
+  planId: 200,
+  email: 320,
+  name: 200,
+  company: 200,
+  bankAccountId: 200,
+};
 
 class RequestBodyTooLargeError extends Error {}
 
@@ -194,6 +200,7 @@ export async function POST(request) {
   const email = stringField(form, "email", true);
   const name = stringField(form, "name");
   const company = stringField(form, "company");
+  const bankAccountId = stringField(form, "bankAccountId", true);
   const proof = form.get("proof");
 
   if (
@@ -204,6 +211,9 @@ export async function POST(request) {
     company === null
   ) {
     return safeError("Un plan et une adresse email valide sont requis.", 400);
+  }
+  if (!bankAccountId) {
+    return safeError("Veuillez sélectionner une banque pour le virement.", 400);
   }
   if (
     !proof ||
@@ -230,6 +240,7 @@ export async function POST(request) {
         email,
         ...(name ? { contactName: name } : {}),
         ...(company ? { company } : {}),
+        bankAccountId,
         source: "LANDING",
         idempotencyKey: `landing-wire-${randomUUID()}`,
       }),
@@ -255,6 +266,7 @@ export async function POST(request) {
   const upstreamForm = new FormData();
   upstreamForm.set("checkoutIntentId", intent.id);
   upstreamForm.set("planId", planId);
+  upstreamForm.set("bankAccountId", bankAccountId);
   upstreamForm.set("proof", proof, proof.name || "justificatif");
 
   let proofResponse;
