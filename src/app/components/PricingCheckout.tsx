@@ -71,10 +71,16 @@ export default function PricingCheckout({
   const [banks, setBanks] = useState<BankAccount[]>([]);
   const [banksLoading, setBanksLoading] = useState(false);
   const [banksLoaded, setBanksLoaded] = useState(false);
+  const [selectedBankId, setSelectedBankId] = useState("");
 
   const activePlan = useMemo(
     () => plans.find((p) => p.id === activePlanId) || null,
     [plans, activePlanId],
+  );
+
+  const selectedBank = useMemo(
+    () => banks.find((bank) => bank.id === selectedBankId) || null,
+    [banks, selectedBankId],
   );
 
   const paddleConfigured = Boolean(getPaddleClientToken());
@@ -130,6 +136,7 @@ export default function PricingCheckout({
     setError("");
     setSuccess("");
     setProof(null);
+    setSelectedBankId("");
   }
 
   function openBuyModal(planId: string) {
@@ -143,6 +150,7 @@ export default function PricingCheckout({
     setError("");
     setSuccess("");
     setProof(null);
+    setSelectedBankId("");
     // Outside Morocco, skip method choice and go straight to card checkout.
     if (!wireEnabled) {
       setPaymentMethod("card");
@@ -156,6 +164,7 @@ export default function PricingCheckout({
   async function loadBanks() {
     setBanksLoading(true);
     setError("");
+    setSelectedBankId("");
     try {
       const res = await fetch("/api/banks");
       const data = await res.json().catch(() => ({}));
@@ -170,9 +179,17 @@ export default function PricingCheckout({
             : "Coordonnées bancaires indisponibles.";
         throw new Error(detail && detail !== message ? `${message} — ${detail}` : message);
       }
-      setBanks(Array.isArray(data.banks) ? data.banks : []);
+      const nextBanks: BankAccount[] = Array.isArray(data.banks)
+        ? data.banks
+        : [];
+      setBanks(nextBanks);
       setBanksLoaded(true);
+      // Single account: pre-select so the user can still confirm the details.
+      setSelectedBankId(nextBanks.length === 1 ? nextBanks[0].id : "");
     } catch (err) {
+      setBanks([]);
+      setBanksLoaded(false);
+      setSelectedBankId("");
       setError(
         err instanceof Error
           ? err.message
@@ -193,8 +210,13 @@ export default function PricingCheckout({
     setError("");
     setSuccess("");
     setProof(null);
-    if (method === "wire" && !banksLoaded && !banksLoading) {
-      void loadBanks();
+    setSelectedBankId("");
+    if (method === "wire") {
+      if (banksLoaded && banks.length === 1) {
+        setSelectedBankId(banks[0].id);
+      } else if (!banksLoaded && !banksLoading) {
+        void loadBanks();
+      }
     }
   }
 
@@ -284,6 +306,10 @@ export default function PricingCheckout({
   async function onWireSubmit(e: FormEvent) {
     e.preventDefault();
     if (!activePlan || !checkoutEnabled || !wireEnabled || !proof || busy) return;
+    if (!selectedBankId || !selectedBank) {
+      setError("Veuillez sélectionner une banque pour le virement.");
+      return;
+    }
     setBusy(true);
     setError("");
     setSuccess("");
@@ -293,6 +319,7 @@ export default function PricingCheckout({
       body.set("email", email.trim());
       if (name.trim()) body.set("name", name.trim());
       if (company.trim()) body.set("company", company.trim());
+      body.set("bankAccountId", selectedBankId);
       body.set("proof", proof);
 
       const res = await fetch("/api/wire", { method: "POST", body });
@@ -507,62 +534,93 @@ export default function PricingCheckout({
                       </p>
                     ) : null}
                     {!banksLoading && !banksLoaded ? (
-                      <button
-                        type="button"
-                        className="button button-outline"
-                        onClick={() => void loadBanks()}
-                      >
-                        Réessayer le chargement
-                      </button>
+                      <>
+                        <p className="form-status form-status-error">
+                          Impossible de charger les banques. Réessayez pour
+                          continuer le virement.
+                        </p>
+                        <button
+                          type="button"
+                          className="button button-outline"
+                          onClick={() => void loadBanks()}
+                        >
+                          Réessayer le chargement
+                        </button>
+                      </>
                     ) : null}
                     {!banksLoading && banksLoaded && banks.length === 0 ? (
                       <p className="form-status form-status-error">
                         Aucun compte bancaire n’est disponible actuellement.
                       </p>
                     ) : null}
-                    {banks.map((bank) => (
-                      <article className="wire-bank-card" key={bank.id}>
+                    {!banksLoading && banks.length > 0 ? (
+                      <label className="wire-bank-select">
+                        <span>Banque de destination</span>
+                        <select
+                          required
+                          value={selectedBankId}
+                          onChange={(e) => setSelectedBankId(e.target.value)}
+                          aria-describedby={
+                            selectedBank ? "wire-bank-details" : undefined
+                          }
+                        >
+                          <option value="">
+                            Sélectionnez une banque
+                          </option>
+                          {banks.map((bank) => (
+                            <option key={bank.id} value={bank.id}>
+                              {bank.label} — {bank.bankName} ({bank.currency})
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : null}
+                    {selectedBank ? (
+                      <article
+                        className="wire-bank-card"
+                        id="wire-bank-details"
+                      >
                         <div className="wire-bank-title">
                           <span>
                             <i className="bi bi-bank" aria-hidden="true" />
                           </span>
                           <div>
-                            <strong>{bank.label}</strong>
-                            <small>{bank.bankName}</small>
+                            <strong>{selectedBank.label}</strong>
+                            <small>{selectedBank.bankName}</small>
                           </div>
-                          <em>{bank.currency}</em>
+                          <em>{selectedBank.currency}</em>
                         </div>
                         <dl>
                           <div>
                             <dt>Titulaire</dt>
-                            <dd>{bank.accountHolder}</dd>
+                            <dd>{selectedBank.accountHolder}</dd>
                           </div>
-                          {bank.rib ? (
+                          {selectedBank.rib ? (
                             <div>
                               <dt>RIB</dt>
-                              <dd>{bank.rib}</dd>
+                              <dd>{selectedBank.rib}</dd>
                             </div>
                           ) : null}
-                          {bank.iban ? (
+                          {selectedBank.iban ? (
                             <div>
                               <dt>IBAN</dt>
-                              <dd>{bank.iban}</dd>
+                              <dd>{selectedBank.iban}</dd>
                             </div>
                           ) : null}
-                          {bank.swift ? (
+                          {selectedBank.swift ? (
                             <div>
                               <dt>SWIFT</dt>
-                              <dd>{bank.swift}</dd>
+                              <dd>{selectedBank.swift}</dd>
                             </div>
                           ) : null}
                         </dl>
-                        {bank.instructions ? (
+                        {selectedBank.instructions ? (
                           <p className="wire-instructions">
-                            {bank.instructions}
+                            {selectedBank.instructions}
                           </p>
                         ) : null}
                       </article>
-                    ))}
+                    ) : null}
                   </div>
                 ) : (
                   <p className="checkout-description">
@@ -648,7 +706,10 @@ export default function PricingCheckout({
                       busy ||
                       Boolean(success) ||
                       (paymentMethod === "wire" &&
-                        (banksLoading || banks.length === 0 || !proof)) ||
+                        (banksLoading ||
+                          banks.length === 0 ||
+                          !selectedBankId ||
+                          !proof)) ||
                       (paymentMethod === "card" && !paddleConfigured)
                     }
                   >
